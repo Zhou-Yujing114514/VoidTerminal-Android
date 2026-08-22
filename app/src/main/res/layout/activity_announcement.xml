@@ -39,6 +39,17 @@
             android:layout_height="wrap_content" />
     </LinearLayout>
 
+    <!-- 空状态提示 -->
+    <TextView
+        android:id="@+id/tv_empty"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="暂无公告"
+        android:textSize="15sp"
+        android:textColor="@color/text_secondary"
+        android:gravity="center"
+        android:padding="48dp"
+        android:visibility="gone" />
     <!-- 公告列表 -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rv_announcements"

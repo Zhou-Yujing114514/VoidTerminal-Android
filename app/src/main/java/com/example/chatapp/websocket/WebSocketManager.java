@@ -138,6 +138,9 @@ public class WebSocketManager {
     public void setServer(String server) {
         this.serverBase = server;
     }
+    public void notifyAvatarUpdate(String userId, String avatar) {
+        for (WSListener l : listeners) l.onAvatarUpdate(userId, avatar);
+    }
     public void connect(String token) {
         this.token = token;
         if (webSocket != null) webSocket.close(1000, "reconnect");

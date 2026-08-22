@@ -91,11 +91,11 @@
             android:textColor="@color/white"
             android:layout_marginBottom="8dp" />
         <Button
-            android:id="@+id/btn_theme"
+            android:id="@+id/btn_custom_bg"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="日间模式"
-            android:backgroundTint="#FFFF8F00"
+            android:text="自定义背景"
+            android:backgroundTint="#FF1565C0"
             android:textColor="@color/white"
             android:layout_marginBottom="8dp" />
         <Button

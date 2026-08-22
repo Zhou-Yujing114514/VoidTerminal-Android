@@ -35,8 +35,14 @@ public class ChatListAdapter extends RecyclerView.Adapter<ChatListAdapter.ViewHo
         this.listener = listener;
     }
 
-    private String getAvatar(String roomId) {
+    private String getAvatar(String roomId, boolean isGroup) {
         if ("global".equals(roomId)) return "";
+        if (isGroup) {
+            for (com.example.chatapp.model.Group g : WebSocketManager.getInstance().groups) {
+                if (g.id.equals(roomId)) return g.avatar != null ? g.avatar : "";
+            }
+            return "";
+        }
         for (User u : WebSocketManager.getInstance().friends) {
             if (u.id.equals(roomId)) return u.avatar != null ? u.avatar : "";
         }
@@ -61,10 +67,10 @@ public class ChatListAdapter extends RecyclerView.Adapter<ChatListAdapter.ViewHo
         } else {
             holder.tvTime.setText("");
         }
-        String avatar = getAvatar(room.id);
+        String avatar = getAvatar(room.id, room.isGroup);
         if (avatar != null && !avatar.isEmpty()) {
             String url = avatar.startsWith("/") ? serverBase + avatar : avatar;
-            Glide.with(holder.ivAvatar.getContext()).load(url).circleCrop().into(holder.ivAvatar);
+            Glide.with(holder.ivAvatar.getContext()).load(url).circleCrop().placeholder(R.drawable.bg_avatar).error(R.drawable.bg_avatar).into(holder.ivAvatar);
         } else {
             holder.ivAvatar.setImageResource(0);
             holder.ivAvatar.setBackgroundResource(R.drawable.bg_avatar);

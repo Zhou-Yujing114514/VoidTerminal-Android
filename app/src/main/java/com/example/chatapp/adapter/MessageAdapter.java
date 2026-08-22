@@ -21,15 +21,20 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.ViewHold
     private String serverBase;
     private String myAvatar;
     private OnMessageLongPressListener longPressListener;
+    private OnAvatarLongPressListener avatarLongPressListener;
     public interface OnMessageLongPressListener {
         void onLongPress(Message msg);
     }
-    public MessageAdapter(List<Message> messages, boolean showSenderName, String serverBase, String myAvatar, OnMessageLongPressListener listener) {
+    public interface OnAvatarLongPressListener {
+        void onAvatarLongPress(Message msg);
+    }
+    public MessageAdapter(List<Message> messages, boolean showSenderName, String serverBase, String myAvatar, OnMessageLongPressListener listener, OnAvatarLongPressListener avatarListener) {
         this.messages = messages;
         this.showSenderName = showSenderName;
         this.serverBase = serverBase;
         this.myAvatar = myAvatar;
         this.longPressListener = listener;
+        this.avatarLongPressListener = avatarListener;
     }
     @Override
     public int getItemViewType(int position) {
@@ -116,6 +121,10 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.ViewHold
             if (myAvatar != null && !myAvatar.isEmpty()) {
                 String url = myAvatar.startsWith("/") ? serverBase + myAvatar : myAvatar;
                 Glide.with(holder.ivAvatarMe.getContext()).load(url).circleCrop().into(holder.ivAvatarMe);
+                holder.ivAvatarMe.setOnLongClickListener(v -> {
+                    if (avatarLongPressListener != null) avatarLongPressListener.onAvatarLongPress(msg);
+                    return true;
+                });
             }
         } else {
             holder.tvRecalledOther.setVisibility(View.GONE);
@@ -151,6 +160,10 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.ViewHold
             if (msg.fromAvatar != null && !msg.fromAvatar.isEmpty()) {
                 String url = msg.fromAvatar.startsWith("/") ? serverBase + msg.fromAvatar : msg.fromAvatar;
                 Glide.with(holder.ivAvatarOther.getContext()).load(url).circleCrop().into(holder.ivAvatarOther);
+                holder.ivAvatarOther.setOnLongClickListener(v -> {
+                    if (avatarLongPressListener != null) avatarLongPressListener.onAvatarLongPress(msg);
+                    return true;
+                });
             }
         }
         // 长按消息

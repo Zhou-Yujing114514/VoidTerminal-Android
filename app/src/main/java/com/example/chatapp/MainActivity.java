@@ -8,7 +8,6 @@ import com.example.chatapp.fragment.ChatListFragment;
 import com.example.chatapp.fragment.ContactsFragment;
 import com.example.chatapp.fragment.MomentsFragment;
 import com.example.chatapp.fragment.ProfileFragment;
-import com.example.chatapp.util.ThemeManager;
 import com.example.chatapp.websocket.WebSocketManager;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 public class MainActivity extends AppCompatActivity {
@@ -41,8 +40,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
     private void applyTheme() {
-        boolean dark = ThemeManager.isDarkMode(this);
-        int bg = dark ? 0xFF1A1A2E : 0xFFF5F5F5;
+        int bg = 0xFF1A1A2E;
         View root = findViewById(android.R.id.content);
         if (root != null) {
             root.setBackgroundColor(bg);

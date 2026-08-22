@@ -26,7 +26,6 @@ import com.example.chatapp.model.ChatRoom;
 import com.example.chatapp.model.Message;
 import com.example.chatapp.util.MessageStore;
 import com.example.chatapp.util.SharedPrefs;
-import com.example.chatapp.util.ThemeManager;
 import com.example.chatapp.websocket.WebSocketManager;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -103,7 +102,7 @@ public class ChatActivity extends AppCompatActivity implements WebSocketManager.
         layoutManager.setStackFromEnd(true);
         rvMessages.setLayoutManager(layoutManager);
         String myAvatar = getSharedPreferences("chatapp_prefs", 0).getString("avatar", "");
-        adapter = new MessageAdapter(currentRoom.messages, isGlobal || isGroup, serverBase, myAvatar, this::onMessageLongPress);
+        adapter = new MessageAdapter(currentRoom.messages, isGlobal || isGroup, serverBase, myAvatar, this::onMessageLongPress, this::onAvatarLongPress);
         rvMessages.setAdapter(adapter);
         scrollToBottom();
         btnBack.setOnClickListener(v -> finish());
@@ -163,19 +162,32 @@ public class ChatActivity extends AppCompatActivity implements WebSocketManager.
     private void toggleStickerPanel() {
         layoutStickers.setVisibility(layoutStickers.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE);
     }
+    private void onAvatarLongPress(Message msg) {
+        if (msg == null || msg.from == null) return;
+        // 不@自己
+        if (WebSocketManager.getInstance().currentUser != null &&
+            msg.from.equals(WebSocketManager.getInstance().currentUser.id)) return;
+        String name = msg.fromName != null && !msg.fromName.isEmpty() ? msg.fromName : msg.from;
+        EditText etInput = findViewById(R.id.et_message);
+        if (etInput != null) {
+            String current = etInput.getText().toString();
+            String mention = "@" + name + " ";
+            if (!current.contains(mention.trim())) {
+                etInput.setText(current + mention);
+                etInput.setSelection(etInput.getText().length());
+            }
+            Toast.makeText(this, "已@" + name, Toast.LENGTH_SHORT).show();
+        }
+    }
+
     private void showMoreMenu() {
-        String[] options = isGroup ? new String[]{"群设置", "设置背景", "清除背景"} : new String[]{"设置背景", "清除背景"};
+        if (!isGroup) return;
         new AlertDialog.Builder(this)
-                .setItems(options, (dialog, which) -> {
-                    if (options[which].equals("群设置")) {
-                        Intent intent = new Intent(this, GroupSettingsActivity.class);
-                        intent.putExtra("group_id", roomId);
-                        startActivity(intent);
-                    } else if (options[which].equals("设置背景")) {
-                        pickBackground();
-                    } else if (options[which].equals("清除背景")) {
-                        clearCustomBackground();
-                    }
+                .setTitle("更多")
+                .setItems(new String[]{"群设置"}, (dialog, which) -> {
+                    Intent intent = new Intent(this, GroupSettingsActivity.class);
+                    intent.putExtra("group_id", roomId);
+                    startActivity(intent);
                 })
                 .show();
     }
@@ -193,10 +205,7 @@ public class ChatActivity extends AppCompatActivity implements WebSocketManager.
         }
     }
     private void applyTheme() {
-        boolean dark = ThemeManager.isDarkMode(this);
-        if (!dark) {
-            layoutRoot.setBackgroundColor(0xFFF5F5F5);
-        }
+        // 固定深色模式
     }
     private void pickBackground() {
         Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);

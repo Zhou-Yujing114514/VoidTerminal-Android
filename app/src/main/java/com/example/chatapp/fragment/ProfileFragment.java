@@ -27,7 +27,6 @@ import com.example.chatapp.LoginActivity;
 import com.example.chatapp.R;
 import com.example.chatapp.api.ApiClient;
 import com.example.chatapp.util.SharedPrefs;
-import com.example.chatapp.util.ThemeManager;
 import com.example.chatapp.websocket.WebSocketManager;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -37,7 +36,8 @@ public class ProfileFragment extends Fragment {
     private static final String SERVER_URL = "https://buer.kdns.fr";
     private ImageView ivAvatar;
     private TextView tvUsername, tvUserId, tvServer;
-    private Button btnTheme;
+    private Button btnCustomBg;
+    private androidx.activity.result.ActivityResultLauncher<Intent> bgPickerLauncher;
     private ActivityResultLauncher<Intent> imagePickerLauncher;
     @Nullable
     @Override
@@ -47,7 +47,15 @@ public class ProfileFragment extends Fragment {
         tvUsername = view.findViewById(R.id.tv_username);
         tvUserId = view.findViewById(R.id.tv_user_id);
         tvServer = view.findViewById(R.id.tv_server);
-        btnTheme = view.findViewById(R.id.btn_theme);
+        btnCustomBg = view.findViewById(R.id.btn_custom_bg);
+        bgPickerLauncher = registerForActivityResult(
+                new androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() == android.app.Activity.RESULT_OK && result.getData() != null) {
+                        android.net.Uri uri = result.getData().getData();
+                        if (uri != null) saveBackground(uri);
+                    }
+                });
         Button btnLogout = view.findViewById(R.id.btn_logout);
         Button btnCreateGroup = view.findViewById(R.id.btn_create_group);
         Button btnEditProfile = view.findViewById(R.id.btn_edit_profile);
@@ -56,7 +64,6 @@ public class ProfileFragment extends Fragment {
         tvUsername.setText(SharedPrefs.getUsername(getContext()));
         tvUserId.setText("ID: " + SharedPrefs.getUserId(getContext()));
         tvServer.setText(SERVER_URL);
-        updateThemeButton();
         String avatar = getContext().getSharedPreferences("chatapp_prefs", 0).getString("avatar", "");
         if (avatar != null && !avatar.isEmpty()) {
             String url = avatar.startsWith("/") ? SERVER_URL + avatar : avatar;
@@ -70,7 +77,7 @@ public class ProfileFragment extends Fragment {
         btnAdmin.setOnClickListener(v -> startActivity(new Intent(getContext(), AdminActivity.class)));
         btnCreateGroup.setOnClickListener(v -> startActivity(new Intent(getContext(), CreateGroupActivity.class)));
         btnEditProfile.setOnClickListener(v -> showEditProfileDialog());
-        btnTheme.setOnClickListener(v -> toggleTheme());
+        btnCustomBg.setOnClickListener(v -> showBgMenu());
         btnNovel.setOnClickListener(v -> startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://morax.kdns.fr/"))));
         ivAvatar.setOnClickListener(v -> pickImage());
         btnLogout.setOnClickListener(v -> {
@@ -89,17 +96,6 @@ public class ProfileFragment extends Fragment {
                     }
                 });
         return view;
-    }
-    private void updateThemeButton() {
-        boolean dark = ThemeManager.isDarkMode(getActivity());
-        btnTheme.setText(dark ? "切换日间模式" : "切换夜间模式");
-    }
-    private void toggleTheme() {
-        boolean dark = ThemeManager.isDarkMode(getActivity());
-        ThemeManager.setDarkMode(getActivity(), !dark);
-        if (getActivity() != null) {
-            getActivity().recreate();
-        }
     }
     private void showEditProfileDialog() {
         View dialogView = LayoutInflater.from(getContext()).inflate(R.layout.dialog_edit_profile, null);
@@ -181,6 +177,13 @@ public class ProfileFragment extends Fragment {
                                 String url = avatar.startsWith("/") ? SERVER_URL + avatar : avatar;
                                 Glide.with(ProfileFragment.this).load(url + "?t=" + System.currentTimeMillis())
                                         .circleCrop().into(ivAvatar);
+                                // 更新当前用户头像
+                                if (WebSocketManager.getInstance().currentUser != null) {
+                                    WebSocketManager.getInstance().currentUser.avatar = avatar;
+                                }
+                                // 通知所有页面头像更新
+                                WebSocketManager.getInstance().notifyAvatarUpdate(
+                                    SharedPrefs.getUserId(getContext()), avatar);
                                 Toast.makeText(getContext(), "头像更换成功", Toast.LENGTH_SHORT).show();
                             });
                         }
@@ -199,4 +202,46 @@ public class ProfileFragment extends Fragment {
             Toast.makeText(getContext(), "读取图片失败: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
     }
+
+
+    private void saveBackground(android.net.Uri uri) {
+        try {
+            java.io.InputStream is = getContext().getContentResolver().openInputStream(uri);
+            java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+            byte[] buffer = new byte[4096];
+            int len;
+            while ((len = is.read(buffer)) != -1) bos.write(buffer, 0, len);
+            is.close();
+            String base64 = android.util.Base64.encodeToString(bos.toByteArray(), android.util.Base64.NO_WRAP);
+            getContext().getSharedPreferences("chatapp_prefs", 0).edit()
+                    .putString("chat_bg_global", base64).apply();
+            Toast.makeText(getContext(), "背景设置成功", Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            Toast.makeText(getContext(), "设置失败: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void showBgMenu() {
+        String[] items = {"选择背景图片", "恢复默认背景"};
+        new AlertDialog.Builder(getContext())
+                .setTitle("自定义背景")
+                .setItems(items, (d, which) -> {
+                    if (which == 0) pickBackground();
+                    else clearBackground();
+                })
+                .show();
+    }
+    private void pickBackground() {
+        Intent intent = new Intent(Intent.ACTION_PICK);
+        intent.setType("image/*");
+        bgPickerLauncher.launch(intent);
+    }
+    private void clearBackground() {
+        if (getContext() != null) {
+            getContext().getSharedPreferences("chatapp_prefs", 0).edit()
+                    .remove("chat_bg_global").apply();
+            Toast.makeText(getContext(), "已恢复默认背景", Toast.LENGTH_SHORT).show();
+        }
+    }
+
 }
