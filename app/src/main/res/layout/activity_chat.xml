@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/layout_chat_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/bg_dark">
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="16dp"
+        android:background="@color/bg_card">
+        <TextView
+            android:id="@+id/btn_back"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="返回"
+            android:textSize="16sp"
+            android:textColor="@color/text_secondary"
+            android:padding="8dp" />
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center">
+            <TextView
+                android:id="@+id/tv_chat_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="聊天"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:textColor="@color/text_primary" />
+            <TextView
+                android:id="@+id/tv_online_status"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textSize="11sp"
+                android:textColor="@color/text_secondary"
+                android:visibility="gone" />
+        </LinearLayout>
+        <TextView
+            android:id="@+id/btn_more"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="..."
+            android:textSize="20sp"
+            android:textColor="@color/text_secondary"
+            android:padding="8dp"
+            android:visibility="gone" />
+    </LinearLayout>
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rv_messages"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:padding="12dp" />
+    <!-- 引用预览条 -->
+    <LinearLayout
+        android:id="@+id/layout_quote"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="12dp"
+        android:paddingVertical="8dp"
+        android:background="@color/bg_card"
+        android:visibility="gone">
+        <View
+            android:layout_width="3dp"
+            android:layout_height="32dp"
+            android:background="@color/accent"
+            android:layout_marginEnd="8dp" />
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+            <TextView
+                android:id="@+id/tv_quote_from"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textSize="12sp"
+                android:textColor="@color/accent"
+                android:maxLines="1"
+                android:ellipsize="end" />
+            <TextView
+                android:id="@+id/tv_quote_content"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textSize="13sp"
+                android:textColor="@color/text_secondary"
+                android:maxLines="1"
+                android:ellipsize="end" />
+        </LinearLayout>
+        <TextView
+            android:id="@+id/btn_cancel_quote"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="取消"
+            android:textSize="13sp"
+            android:textColor="@color/text_secondary"
+            android:padding="8dp" />
+    </LinearLayout>
+    <!-- 表情面板 -->
+    <HorizontalScrollView
+        android:id="@+id/layout_stickers"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/bg_card"
+        android:padding="8dp"
+        android:visibility="gone">
+        <LinearLayout
+            android:id="@+id/sticker_container"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal" />
+    </HorizontalScrollView>
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:padding="8dp"
+        android:background="@color/bg_card">
+        <TextView
+            android:id="@+id/btn_sticker"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="表情"
+            android:textSize="14sp"
+            android:textColor="@color/text_secondary"
+            android:padding="8dp" />
+        <TextView
+            android:id="@+id/btn_image"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="图片"
+            android:textSize="14sp"
+            android:textColor="@color/text_secondary"
+            android:padding="8dp" />
+        <EditText
+            android:id="@+id/et_message"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:hint="输入消息..."
+            android:textColorHint="@color/text_secondary"
+            android:textColor="@color/text_primary"
+            android:background="@drawable/bg_input"
+            android:padding="10dp"
+            android:layout_marginHorizontal="8dp" />
+        <TextView
+            android:id="@+id/btn_send"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/send"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="@color/accent"
+            android:padding="8dp" />
+    </LinearLayout>
+</LinearLayout>

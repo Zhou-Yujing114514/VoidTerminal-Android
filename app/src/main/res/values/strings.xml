@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">虚空终端</string>
+    <string name="chat">消息</string>
+    <string name="contacts">通讯录</string>
+    <string name="moments">朋友圈</string>
+    <string name="profile">我的</string>
+    <string name="login">登录</string>
+    <string name="register">注册</string>
+    <string name="logout">退出登录</string>
+    <string name="username">用户名</string>
+    <string name="password">密码</string>
+    <string name="server_address">服务器地址</string>
+    <string name="send">发送</string>
+</resources>

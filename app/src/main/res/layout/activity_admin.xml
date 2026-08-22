@@ -1,0 +1,224 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg_dark">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- 标题 -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="站长管理"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_primary"
+            android:layout_marginBottom="20dp" />
+
+        <!-- 发布公告 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="发布公告"
+            android:textSize="14sp"
+            android:textColor="@color/text_secondary"
+            android:layout_marginBottom="6dp" />
+        <EditText
+            android:id="@+id/et_announce"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="公告内容（1-500字）"
+            android:textColorHint="@color/text_secondary"
+            android:textColor="@color/text_primary"
+            android:background="@drawable/bg_input"
+            android:padding="12dp"
+            android:maxLength="500"
+            android:inputType="textMultiLine"
+            android:minLines="2"
+            android:layout_marginBottom="8dp" />
+        <TextView
+            android:id="@+id/btn_announce"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="发布公告"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:textColor="@color/white"
+            android:background="@color/accent"
+            android:gravity="center"
+            android:padding="12dp"
+            android:layout_marginBottom="20dp" />
+
+        <!-- 封禁/解封用户 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="封禁/解封用户"
+            android:textSize="14sp"
+            android:textColor="@color/text_secondary"
+            android:layout_marginBottom="6dp" />
+        <EditText
+            android:id="@+id/et_ban_username"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="用户名"
+            android:textColorHint="@color/text_secondary"
+            android:textColor="@color/text_primary"
+            android:background="@drawable/bg_input"
+            android:padding="12dp"
+            android:layout_marginBottom="8dp" />
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="20dp">
+            <TextView
+                android:id="@+id/btn_ban"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="封禁"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="@color/white"
+                android:background="#FFE53935"
+                android:gravity="center"
+                android:padding="10dp"
+                android:layout_marginEnd="6dp" />
+            <TextView
+                android:id="@+id/btn_unban"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="解封"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="@color/white"
+                android:background="#FF43A047"
+                android:gravity="center"
+                android:padding="10dp"
+                android:layout_marginStart="6dp" />
+        </LinearLayout>
+
+        <!-- 踢出用户 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="踢出用户"
+            android:textSize="14sp"
+            android:textColor="@color/text_secondary"
+            android:layout_marginBottom="6dp" />
+        <EditText
+            android:id="@+id/et_kick_userid"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="用户ID"
+            android:textColorHint="@color/text_secondary"
+            android:textColor="@color/text_primary"
+            android:background="@drawable/bg_input"
+            android:padding="12dp"
+            android:layout_marginBottom="8dp" />
+        <TextView
+            android:id="@+id/btn_kick"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="踢出用户"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:textColor="@color/white"
+            android:background="#FFE53935"
+            android:gravity="center"
+            android:padding="12dp"
+            android:layout_marginBottom="20dp" />
+
+        <!-- 大厅管理 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="大厅管理"
+            android:textSize="14sp"
+            android:textColor="@color/text_secondary"
+            android:layout_marginBottom="6dp" />
+        <EditText
+            android:id="@+id/et_hall_name"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="新大厅名称（1-20字）"
+            android:textColorHint="@color/text_secondary"
+            android:textColor="@color/text_primary"
+            android:background="@drawable/bg_input"
+            android:padding="12dp"
+            android:maxLength="20"
+            android:layout_marginBottom="8dp" />
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="20dp">
+            <TextView
+                android:id="@+id/btn_rename_hall"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="重命名"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="@color/white"
+                android:background="@color/accent"
+                android:gravity="center"
+                android:padding="10dp"
+                android:layout_marginEnd="6dp" />
+            <TextView
+                android:id="@+id/btn_clear_hall"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="清空记录"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="@color/white"
+                android:background="#FFE53935"
+                android:gravity="center"
+                android:padding="10dp"
+                android:layout_marginStart="6dp" />
+        </LinearLayout>
+
+        <!-- 在线人数上限 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="在线人数上限"
+            android:textSize="14sp"
+            android:textColor="@color/text_secondary"
+            android:layout_marginBottom="6dp" />
+        <EditText
+            android:id="@+id/et_max_online"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="最大在线人数"
+            android:textColorHint="@color/text_secondary"
+            android:textColor="@color/text_primary"
+            android:background="@drawable/bg_input"
+            android:padding="12dp"
+            android:inputType="number"
+            android:layout_marginBottom="8dp" />
+        <TextView
+            android:id="@+id/btn_set_max"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="设置上限"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:textColor="@color/white"
+            android:background="@color/accent"
+            android:gravity="center"
+            android:padding="12dp"
+            android:layout_marginBottom="20dp" />
+
+    </LinearLayout>
+</ScrollView>

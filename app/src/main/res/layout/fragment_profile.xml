@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg_dark">
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="32dp">
+            <ImageView
+                android:id="@+id/iv_avatar"
+                android:layout_width="64dp"
+                android:layout_height="64dp"
+                android:background="@drawable/bg_avatar"
+                android:scaleType="centerCrop"
+                android:clickable="true"
+                android:contentDescription="头像" />
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="16dp"
+                android:orientation="vertical">
+                <TextView
+                    android:id="@+id/tv_username"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="用户名"
+                    android:textSize="20sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/text_primary" />
+                <TextView
+                    android:id="@+id/tv_user_id"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="ID: u1"
+                    android:textSize="13sp"
+                    android:textColor="@color/text_secondary"
+                    android:layout_marginTop="4dp" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="点击头像更换"
+                    android:textSize="11sp"
+                    android:textColor="@color/text_secondary"
+                    android:layout_marginTop="2dp" />
+            </LinearLayout>
+        </LinearLayout>
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/text_secondary"
+            android:alpha="0.2"
+            android:layout_marginBottom="16dp" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/server_address"
+            android:textColor="@color/text_secondary"
+            android:textSize="13sp"
+            android:layout_marginBottom="4dp" />
+        <TextView
+            android:id="@+id/tv_server"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="https://buer.kdns.fr"
+            android:textColor="@color/text_primary"
+            android:textSize="14sp"
+            android:layout_marginBottom="24dp" />
+        <Button
+            android:id="@+id/btn_create_group"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="创建群聊"
+            android:backgroundTint="@color/accent"
+            android:textColor="@color/white"
+            android:layout_marginBottom="8dp" />
+        <Button
+            android:id="@+id/btn_edit_profile"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="修改资料"
+            android:backgroundTint="#FF1565C0"
+            android:textColor="@color/white"
+            android:layout_marginBottom="8dp" />
+        <Button
+            android:id="@+id/btn_theme"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="日间模式"
+            android:backgroundTint="#FFFF8F00"
+            android:textColor="@color/white"
+            android:layout_marginBottom="8dp" />
+        <Button
+            android:id="@+id/btn_novel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="小说"
+            android:backgroundTint="#FF1B5E20"
+            android:textColor="@color/white"
+            android:layout_marginBottom="8dp" />
+        <Button
+            android:id="@+id/btn_admin"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="站长管理"
+            android:backgroundTint="#FF9C27B0"
+            android:textColor="@color/white"
+            android:layout_marginBottom="8dp"
+            android:visibility="gone" />
+        <Button
+            android:id="@+id/btn_logout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/logout"
+            android:backgroundTint="#FFE53935"
+            android:textColor="@color/white" />
+    </LinearLayout>
+</ScrollView>

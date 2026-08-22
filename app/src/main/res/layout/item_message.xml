@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:layout_marginVertical="4dp">
+    <TextView
+        android:id="@+id/tv_sender_name"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="11sp"
+        android:textColor="@color/text_secondary"
+        android:layout_marginStart="56dp"
+        android:layout_marginBottom="2dp"
+        android:visibility="gone" />
+    <LinearLayout
+        android:id="@+id/layout_me"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="end"
+        android:visibility="gone">
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="end"
+            android:maxWidth="280dp">
+            <!-- 引用内容 -->
+            <LinearLayout
+                android:id="@+id/layout_quote_me"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/bg_bubble_me"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="8dp"
+                android:layout_marginBottom="2dp"
+                android:visibility="gone">
+                <TextView
+                    android:id="@+id/tv_quote_from_me"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="11sp"
+                    android:textColor="#FFB3E5FC"
+                    android:maxLines="1"
+                    android:ellipsize="end" />
+                <TextView
+                    android:id="@+id/tv_quote_content_me"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="12sp"
+                    android:textColor="#FFE0E0E0"
+                    android:maxLines="2"
+                    android:ellipsize="end" />
+            </LinearLayout>
+            <ImageView
+                android:id="@+id/iv_image_me"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:maxWidth="200dp"
+                android:maxHeight="200dp"
+                android:adjustViewBounds="true"
+                android:layout_marginBottom="4dp"
+                android:visibility="gone" />
+            <TextView
+                android:id="@+id/tv_content_me"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_bubble_me"
+                android:padding="10dp"
+                android:textColor="@color/white"
+                android:textSize="15sp"
+                android:autoLink="web" />
+            <TextView
+                android:id="@+id/tv_recalled_me"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="消息已撤回"
+                android:textSize="12sp"
+                android:textColor="@color/text_secondary"
+                android:padding="8dp"
+                android:visibility="gone" />
+        </LinearLayout>
+        <ImageView
+            android:id="@+id/iv_avatar_me"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/bg_avatar"
+            android:scaleType="centerCrop" />
+    </LinearLayout>
+    <LinearLayout
+        android:id="@+id/layout_other"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="start"
+        android:visibility="gone">
+        <ImageView
+            android:id="@+id/iv_avatar_other"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginEnd="8dp"
+            android:background="@drawable/bg_avatar"
+            android:scaleType="centerCrop" />
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="start"
+            android:maxWidth="280dp">
+            <!-- 引用内容 -->
+            <LinearLayout
+                android:id="@+id/layout_quote_other"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/bg_bubble_other"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="8dp"
+                android:layout_marginBottom="2dp"
+                android:visibility="gone">
+                <TextView
+                    android:id="@+id/tv_quote_from_other"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="11sp"
+                    android:textColor="@color/accent"
+                    android:maxLines="1"
+                    android:ellipsize="end" />
+                <TextView
+                    android:id="@+id/tv_quote_content_other"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="12sp"
+                    android:textColor="@color/text_secondary"
+                    android:maxLines="2"
+                    android:ellipsize="end" />
+            </LinearLayout>
+            <ImageView
+                android:id="@+id/iv_image_other"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:maxWidth="200dp"
+                android:maxHeight="200dp"
+                android:adjustViewBounds="true"
+                android:layout_marginBottom="4dp"
+                android:visibility="gone" />
+            <TextView
+                android:id="@+id/tv_content_other"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_bubble_other"
+                android:padding="10dp"
+                android:textColor="@color/text_primary"
+                android:textSize="15sp"
+                android:autoLink="web" />
+            <TextView
+                android:id="@+id/tv_recalled_other"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="消息已撤回"
+                android:textSize="12sp"
+                android:textColor="@color/text_secondary"
+                android:padding="8dp"
+                android:visibility="gone" />
+        </LinearLayout>
+    </LinearLayout>
+</LinearLayout>
