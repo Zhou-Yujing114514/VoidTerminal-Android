@@ -87,16 +87,34 @@ public class MomentAdapter extends RecyclerView.Adapter<MomentAdapter.ViewHolder
         holder.layoutComments.removeAllViews();
         for (Moment.Comment c : m.comments) {
             TextView tv = new TextView(holder.layoutComments.getContext());
-            tv.setText(c.userName + ": " + c.text);
+            String prefix = c.userName;
+            if (c.replyTo != null && !c.replyTo.isEmpty() && c.replyToName != null && !c.replyToName.isEmpty()) {
+                prefix += " 回复 @" + c.replyToName;
+            }
+            tv.setText(prefix + ": " + c.text);
             tv.setTextSize(13);
-            tv.setTextColor(0xFFEAEAEA);
-            tv.setPadding(0, 4, 0, 4);
+            tv.setTextColor(0xFF333333);
+            tv.setPadding(0, 6, 0, 6);
+            // 点击评论回复
+            final Moment.Comment commentRef = c;
+            tv.setOnClickListener(v -> {
+                android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(v.getContext());
+                builder.setTitle("回复 @" + commentRef.userName);
+                final android.widget.EditText input = new android.widget.EditText(v.getContext());
+                input.setHint("回复内容...");
+                builder.setView(input);
+                builder.setPositiveButton("发送", (d, w) ->
+                        WebSocketManager.getInstance().commentMoment(m.id, input.getText().toString(), commentRef.user, commentRef.userName));
+                builder.setNegativeButton("取消", null);
+                builder.show();
+            });
             holder.layoutComments.addView(tv);
         }
         holder.btnComment.setOnClickListener(v -> {
             android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(v.getContext());
             builder.setTitle("评论");
             final android.widget.EditText input = new android.widget.EditText(v.getContext());
+            input.setHint("评论内容...");
             builder.setView(input);
             builder.setPositiveButton("发送", (d, w) ->
                     WebSocketManager.getInstance().commentMoment(m.id, input.getText().toString()));

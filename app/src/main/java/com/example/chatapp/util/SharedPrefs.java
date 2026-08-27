@@ -45,6 +45,12 @@ public class SharedPrefs {
     public static void setAvatarVersion(Context ctx, long version) {
         ctx.getSharedPreferences(PREFS, 0).edit().putLong("avatar_version", version).apply();
     }
+    public static String getAvatar(Context ctx) {
+        return ctx.getSharedPreferences(PREFS, 0).getString("avatar", "");
+    }
+    public static void setAvatar(Context ctx, String avatar) {
+        ctx.getSharedPreferences(PREFS, 0).edit().putString("avatar", avatar).apply();
+    }
 
     public static void clear(Context ctx) {
         ctx.getSharedPreferences(PREFS, 0).edit().clear().apply();

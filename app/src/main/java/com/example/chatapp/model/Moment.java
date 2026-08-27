@@ -18,10 +18,13 @@ public class Moment {
     public List<Comment> comments = new ArrayList<>();
 
     public static class Comment {
+        public String id;
         public String user;
         public String userName;
         public String text;
         public long time;
+        public String replyTo;
+        public String replyToName;
     }
 
     public static Moment fromJson(JSONObject obj) {
@@ -50,10 +53,13 @@ public class Moment {
                 JSONObject c = commentsArr.optJSONObject(i);
                 if (c != null) {
                     Comment comment = new Comment();
-                    comment.user = c.optString("user", "");
-                    comment.userName = c.optString("userName", "");
+                    comment.id = c.optString("id", "");
+                    comment.user = c.optString("user", "") != null && !c.optString("user", "").isEmpty() ? c.optString("user", "") : c.optString("author", "");
+                    comment.userName = c.optString("userName", "") != null && !c.optString("userName", "").isEmpty() ? c.optString("userName", "") : c.optString("authorName", "");
                     comment.text = c.optString("text", "");
                     comment.time = c.optLong("time", 0);
+                    comment.replyTo = c.optString("replyTo", "");
+                    comment.replyToName = c.optString("replyToName", "");
                     m.comments.add(comment);
                 }
             }

@@ -63,6 +63,12 @@ public class MomentsFragment extends Fragment implements WebSocketManager.WSList
     public void onMessageRecalled(String msgId, String roomId) {}
     @Override
     public void onAvatarUpdate(String userId, String avatar) {}
+    @Override public void onTyping(String fromUid) {}
+    @Override public void onMessageRead(String fromUid, String msgId) {}
+    @Override public void onGroupAnnouncement(String gid, String text, long time) {}
+    @Override public void onFileUploadComplete(String fileId, String url, String filename, long size) {}
+    @Override public void onFileUploadError(String fileId, String error) {}
+    @Override public void onFileChunkAck(String fileId, int chunkIndex) {}
     @Override
     public void onMomentsUpdated() {
         if (getActivity() != null && adapter != null)
@@ -74,4 +80,30 @@ public class MomentsFragment extends Fragment implements WebSocketManager.WSList
     public void onFriendRequestReceived() {}
     @Override
     public void onFriendRequestResult(boolean ok, String error) {}
+
+    @Override
+    public void onMomentNotify(String action, String fromName, String momentText, String commentText) {
+        if (getActivity() != null) getActivity().runOnUiThread(() -> {
+            String title = action.equals("reply") ? fromName + " 回复了你的评论" : fromName + " 评论了你的动态";
+            String msg = commentText;
+            if (momentText != null && !momentText.isEmpty()) {
+                msg = "动态: " + momentText + "\n评论: " + commentText;
+            }
+            new androidx.appcompat.app.AlertDialog.Builder(getContext())
+                .setTitle(title)
+                .setMessage(msg)
+                .setPositiveButton("查看", (d, w) -> {
+                    if (adapter != null) adapter.notifyDataSetChanged();
+                })
+                .setNegativeButton("关闭", null)
+                .show();
+        });
+    }
+    @Override
+    public void onTitleUpdate(String userId, String title) {}
+    @Override
+    public void onStatusUpdate(String userId, String status) {}
+    @Override
+    public void onPresenceUpdate() {}
+
 }

@@ -220,5 +220,59 @@
             android:padding="12dp"
             android:layout_marginBottom="20dp" />
 
+        <!-- 用户列表 -->
+        <TextView
+            android:id="@+id/btn_user_list"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="查看用户列表"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:textColor="@color/white"
+            android:background="@color/accent"
+            android:gravity="center"
+            android:padding="12dp"
+            android:layout_marginBottom="8dp" />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rv_users"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:background="@color/white" />
+
+        <!-- 批量发消息 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="批量发消息（所有在线用户）"
+            android:textSize="14sp"
+            android:textColor="@color/text_secondary"
+            android:layout_marginBottom="6dp" />
+        <EditText
+            android:id="@+id/et_broadcast"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="消息内容"
+            android:textColorHint="@color/text_secondary"
+            android:textColor="@color/text_primary"
+            android:background="@drawable/bg_input"
+            android:padding="12dp"
+            android:inputType="textMultiLine"
+            android:minLines="2"
+            android:layout_marginBottom="8dp" />
+        <TextView
+            android:id="@+id/btn_broadcast"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="批量发送"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:textColor="@color/white"
+            android:background="@color/accent"
+            android:gravity="center"
+            android:padding="12dp"
+            android:layout_marginBottom="20dp" />
+
     </LinearLayout>
 </ScrollView>

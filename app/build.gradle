@@ -10,8 +10,8 @@ android {
         applicationId "com.example.chatapp"
         minSdk 24
         targetSdk 34
-        versionCode 13
-        versionName "3.1"
+        versionCode 1027
+        versionName "10.27"
     }
 
     buildTypes {

@@ -58,8 +58,8 @@
                 android:id="@+id/iv_image_me"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:maxWidth="200dp"
-                android:maxHeight="200dp"
+                android:maxWidth="240dp"
+                android:maxHeight="240dp"
                 android:adjustViewBounds="true"
                 android:layout_marginBottom="4dp"
                 android:visibility="gone" />
@@ -80,6 +80,15 @@
                 android:textSize="12sp"
                 android:textColor="@color/text_secondary"
                 android:padding="8dp"
+                android:visibility="gone" />
+            <TextView
+                android:id="@+id/tv_status_me"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="未读"
+                android:textSize="10sp"
+                android:textColor="@color/text_secondary"
+                android:paddingTop="2dp"
                 android:visibility="gone" />
         </LinearLayout>
         <ImageView
@@ -142,8 +151,8 @@
                 android:id="@+id/iv_image_other"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:maxWidth="200dp"
-                android:maxHeight="200dp"
+                android:maxWidth="240dp"
+                android:maxHeight="240dp"
                 android:adjustViewBounds="true"
                 android:layout_marginBottom="4dp"
                 android:visibility="gone" />

@@ -42,6 +42,13 @@
                 android:textSize="11sp"
                 android:textColor="@color/text_secondary"
                 android:visibility="gone" />
+            <TextView
+                android:id="@+id/tv_typing_status"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="12sp"
+                android:textColor="#FF9800"
+                android:visibility="gone" />
         </LinearLayout>
         <TextView
             android:id="@+id/btn_more"
@@ -52,6 +59,33 @@
             android:textColor="@color/text_secondary"
             android:padding="8dp"
             android:visibility="gone" />
+    </LinearLayout>
+    <!-- 群公告横幅 -->
+    <LinearLayout
+        android:id="@+id/layout_group_announcement"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="12dp"
+        android:paddingVertical="8dp"
+        android:background="#FFF9E6"
+        android:visibility="gone">
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="📢"
+            android:textSize="16sp"
+            android:layout_marginEnd="8dp" />
+        <TextView
+            android:id="@+id/tv_group_announcement"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textSize="13sp"
+            android:textColor="#333333"
+            android:maxLines="2"
+            android:ellipsize="end" />
     </LinearLayout>
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rv_messages"
@@ -108,6 +142,127 @@
             android:textColor="@color/text_secondary"
             android:padding="8dp" />
     </LinearLayout>
+    <!-- 更多功能面板 -->
+    <LinearLayout
+        android:id="@+id/layout_more_panel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:background="@color/white"
+        android:padding="12dp"
+        android:elevation="4dp"
+        android:visibility="gone">
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:id="@+id/btn_more_sticker">
+            <TextView
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:text="😀"
+                android:textSize="24sp"
+                android:gravity="center"
+                android:background="@drawable/bg_icon_circle" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="表情"
+                android:textSize="12sp"
+                android:textColor="@color/text_secondary"
+                android:layout_marginTop="4dp" />
+        </LinearLayout>
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:id="@+id/btn_more_image">
+            <TextView
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:text="🖼️"
+                android:textSize="24sp"
+                android:gravity="center"
+                android:background="@drawable/bg_icon_circle" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="图片"
+                android:textSize="12sp"
+                android:textColor="@color/text_secondary"
+                android:layout_marginTop="4dp" />
+        </LinearLayout>
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:id="@+id/btn_more_file">
+            <TextView
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:text="📄"
+                android:textSize="24sp"
+                android:gravity="center"
+                android:background="@drawable/bg_icon_circle" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="文件"
+                android:textSize="12sp"
+                android:textColor="@color/text_secondary"
+                android:layout_marginTop="4dp" />
+        </LinearLayout>
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:id="@+id/btn_more_audio">
+            <TextView
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:text="🎵"
+                android:textSize="24sp"
+                android:gravity="center"
+                android:background="@drawable/bg_icon_circle" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="音频"
+                android:textSize="12sp"
+                android:textColor="@color/text_secondary"
+                android:layout_marginTop="4dp" />
+        </LinearLayout>
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:id="@+id/btn_more_voice">
+            <TextView
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:text="🎤"
+                android:textSize="24sp"
+                android:gravity="center"
+                android:background="@drawable/bg_icon_circle" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="按住说话"
+                android:textSize="12sp"
+                android:textColor="@color/text_secondary"
+                android:layout_marginTop="4dp" />
+        </LinearLayout>
+    </LinearLayout>
     <!-- 表情面板 -->
     <HorizontalScrollView
         android:id="@+id/layout_stickers"
@@ -122,6 +277,20 @@
             android:layout_height="wrap_content"
             android:orientation="horizontal" />
     </HorizontalScrollView>
+    <!-- @成员选择列表 -->
+    <HorizontalScrollView
+        android:id="@+id/layout_mention"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/bg_card"
+        android:padding="8dp"
+        android:visibility="gone">
+        <LinearLayout
+            android:id="@+id/mention_container"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal" />
+    </HorizontalScrollView>
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -130,19 +299,11 @@
         android:padding="8dp"
         android:background="@color/bg_card">
         <TextView
-            android:id="@+id/btn_sticker"
+            android:id="@+id/btn_more_input"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="表情"
-            android:textSize="14sp"
-            android:textColor="@color/text_secondary"
-            android:padding="8dp" />
-        <TextView
-            android:id="@+id/btn_image"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="图片"
-            android:textSize="14sp"
+            android:text="➕"
+            android:textSize="20sp"
             android:textColor="@color/text_secondary"
             android:padding="8dp" />
         <EditText

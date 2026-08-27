@@ -41,6 +41,22 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:text="群头像"
+                android:textSize="13sp"
+                android:textColor="@color/text_secondary"
+                android:layout_marginBottom="4dp" />
+            <ImageView
+                android:id="@+id/iv_group_avatar"
+                android:layout_width="80dp"
+                android:layout_height="80dp"
+                android:layout_gravity="center_horizontal"
+                android:background="@drawable/bg_avatar"
+                android:scaleType="centerCrop"
+                android:layout_marginBottom="16dp"
+                android:contentDescription="群头像" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
                 android:text="群名称"
                 android:textSize="13sp"
                 android:textColor="@color/text_secondary"
@@ -86,6 +102,15 @@
                 android:layout_height="wrap_content"
                 android:text="添加成员"
                 android:backgroundTint="@color/accent"
+                android:textColor="@color/white"
+                android:layout_marginBottom="8dp"
+                android:visibility="gone" />
+            <Button
+                android:id="@+id/btn_all_mute"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="开启全体禁言"
+                android:backgroundTint="#FFFF9800"
                 android:textColor="@color/white"
                 android:layout_marginBottom="8dp"
                 android:visibility="gone" />

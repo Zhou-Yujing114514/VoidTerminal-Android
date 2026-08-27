@@ -23,6 +23,13 @@ import java.util.Locale;
 public class ChatListAdapter extends RecyclerView.Adapter<ChatListAdapter.ViewHolder> {
     private List<ChatRoom> rooms;
     private OnItemClickListener listener;
+    private OnItemLongClickListener longClickListener;
+    public interface OnItemLongClickListener {
+        void onLongClick(ChatRoom room);
+    }
+    public void setOnItemLongClickListener(OnItemLongClickListener listener) {
+        this.longClickListener = listener;
+    }
     private String serverBase;
 
     public interface OnItemClickListener {
@@ -59,7 +66,16 @@ public class ChatListAdapter extends RecyclerView.Adapter<ChatListAdapter.ViewHo
     @Override
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         ChatRoom room = rooms.get(position);
-        holder.tvName.setText(room.name);
+        // 优先显示备注名
+        String displayName = room.name;
+        try {
+            android.content.SharedPreferences prefs = holder.itemView.getContext().getSharedPreferences("chat_settings", 0);
+            String remark = prefs.getString("remark_" + room.id, null);
+            if (remark != null && !remark.isEmpty()) {
+                displayName = remark;
+            }
+        } catch (Exception e) {}
+        holder.tvName.setText(displayName);
         holder.tvLastMsg.setText(room.lastMsg != null ? room.lastMsg : "暂无消息");
         if (room.lastTime > 0) {
             SimpleDateFormat sdf = new SimpleDateFormat("HH:mm", Locale.getDefault());
@@ -76,6 +92,10 @@ public class ChatListAdapter extends RecyclerView.Adapter<ChatListAdapter.ViewHo
             holder.ivAvatar.setBackgroundResource(R.drawable.bg_avatar);
         }
         holder.itemView.setOnClickListener(v -> listener.onItemClick(room));
+        holder.itemView.setOnLongClickListener(v -> {
+            if (longClickListener != null) longClickListener.onLongClick(room);
+            return true;
+        });
 
         // 在线状态（仅私聊好友）
         boolean isOnline = !"global".equals(room.id) && !room.isGroup

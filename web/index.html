@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>虚空终端 · 简约聊天站</title>
+<meta name="theme-color" content="#0f1117">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="虚空终端">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="stylesheet" href="/style.css?v=63">
+</head>
+<body>
+
+<!-- 登录 / 注册页 -->
+<div id="view-auth" class="view">
+  <div class="auth-wrap">
+    <div class="auth-brand">
+      <div class="auth-logo">虚空终端</div>
+      <p class="auth-sub">简约 · 轻量 · 随时聊天</p>
+    </div>
+    <div class="auth-card">
+      <div class="auth-tabs">
+        <button class="auth-tab active" data-tab="login">登录</button>
+        <button class="auth-tab" data-tab="totp">验证器</button>
+        <button class="auth-tab" data-tab="register">注册</button>
+      </div>
+
+      <form id="form-login" class="auth-form">
+        <input id="login-username" type="text" placeholder="用户名" autocomplete="username" required>
+        <input id="login-password" type="password" placeholder="密码" autocomplete="current-password" required>
+        <div id="login-msg" class="auth-msg"></div>
+        <button type="submit" class="btn primary block">登 录</button>
+      </form>
+
+      <form id="form-totp" class="auth-form hidden">
+        <input id="totp-username" type="text" placeholder="用户名" autocomplete="username" required>
+        <input id="totp-code" type="text" placeholder="认证器 6 位验证码" inputmode="numeric" maxlength="6" autocomplete="one-time-code" required>
+        <div id="totp-msg" class="auth-msg"></div>
+        <button type="submit" class="btn primary block">验证码登录</button>
+        <p class="auth-note">需先在「我的 → 两步验证」绑定认证器后方可使用。</p>
+      </form>
+
+      <form id="form-register" class="auth-form hidden">
+        <input id="reg-username" type="text" placeholder="用户名（2-20 位字母/数字/中文，不可重复）" autocomplete="off" required>
+        <input id="reg-password" type="password" placeholder="密码（4-64 位）" autocomplete="new-password" required>
+        <input id="reg-password2" type="password" placeholder="确认密码" autocomplete="new-password" required>
+        <div id="reg-msg" class="auth-msg"></div>
+        <button type="submit" class="btn primary block">注 册</button>
+        <p class="auth-note">本站不支持找回密码，请妥善保管自己的密码。</p>
+      </form>
+    </div>
+    <p class="auth-foot">无需手机号与实名，注册即可开聊</p>
+  </div>
+</div>
+
+<!-- 聊天主界面 -->
+<div id="view-chat" class="view hidden">
+
+  <!-- ===== 消息页 ===== -->
+  <section id="page-messages" class="page page-active">
+    <header class="page-head">
+      <div class="page-title">消息</div>
+    </header>
+    <div class="page-search">
+      <input id="contact-search" type="text" placeholder="搜索会话" autocomplete="off">
+    </div>
+    <div class="conv-list">
+      <button class="conv-item" data-room='{"type":"global"}'>
+        <div class="conv-avatar global-avatar"><img src="/icons/icon-192.png" alt="大厅"></div>
+        <div class="conv-info">
+          <div class="conv-name">公共大厅</div>
+          <div class="conv-preview">在这里畅所欲言</div>
+        </div>
+      </button>
+
+      <div id="request-entry" class="conv-item request-item hidden">
+        <div class="conv-avatar request-avatar">验</div>
+        <div class="conv-info">
+          <div class="conv-name">好友验证</div>
+          <div class="conv-preview">等待处理的验证请求</div>
+        </div>
+        <span id="request-count" class="conv-unread"></span>
+      </div>
+
+      <div id="group-request-entry" class="conv-item request-item hidden">
+        <div class="conv-avatar group-request-avatar">群</div>
+        <div class="conv-info">
+          <div class="conv-name">群申请</div>
+          <div class="conv-preview">等待处理的入群申请</div>
+        </div>
+        <span id="group-request-count" class="conv-unread"></span>
+      </div>
+
+      <div class="conv-section">群聊</div>
+      <div id="group-list"></div>
+
+      <div class="conv-section">好友</div>
+      <div id="friend-list"></div>
+    </div>
+  </section>
+
+  <!-- ===== 通讯录页 ===== -->
+  <section id="page-contacts" class="page">
+    <header class="page-head">
+      <div class="page-title">通讯录</div>
+    </header>
+    <div class="contacts-body">
+      <div id="request-entry-c" class="conv-item request-item hidden">
+        <div class="conv-avatar request-avatar">验</div>
+        <div class="conv-info">
+          <div class="conv-name">新的朋友</div>
+          <div class="conv-preview">等待处理的好友验证</div>
+        </div>
+        <span id="request-count-c" class="conv-unread"></span>
+      </div>
+
+      <button id="add-friend-btn" class="contacts-action">
+        <span class="contacts-action-icon">＋</span>
+        <span class="contacts-action-text">添加好友</span>
+      </button>
+      <button id="create-group-btn" class="contacts-action">
+        <span class="contacts-action-icon">群</span>
+        <span class="contacts-action-text">创建群聊</span>
+      </button>
+      <button id="search-group-btn" class="contacts-action" onclick="openSearchGroupModal()">
+        <span class="contacts-action-icon">?</span>
+        <span class="contacts-action-text">搜索群聊</span>
+      </button>
+
+      <div class="conv-section">群聊</div>
+      <div id="contacts-group-list"></div>
+
+      <div class="conv-section">好友</div>
+      <div id="contacts-friend-list"></div>
+    </div>
+  </section>
+
+  <!-- ===== 发现页 ===== -->
+  <section id="page-discover" class="page">
+    <header class="page-head">
+      <div class="page-title">发现</div>
+    </header>
+    <div class="discover-body">
+      <button id="moments-entry" class="discover-item">
+        <span class="discover-icon">朋</span>
+        <span class="discover-label">朋友圈</span>
+        <span class="discover-arrow">›</span>
+      </button>
+      <button id="tomato-entry" class="discover-item">
+        <span class="discover-icon">书</span>
+        <span class="discover-label">看番茄小说</span>
+        <span class="discover-arrow">›</span>
+      </button>
+    </div>
+  </section>
+
+  <!-- ===== 我的页 ===== -->
+  <section id="page-me" class="page">
+    <header class="page-head">
+      <div class="page-title">我的</div>
+    </header>
+    <div class="me-body">
+      <div class="me-card">
+        <div id="me-avatar" class="avatar avatar-me" title="点击更换头像">
+          <div class="avatar-cam">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          </div>
+        </div>
+        <input id="avatar-input" type="file" accept="image/*" hidden>
+        <div class="me-card-info">
+          <div class="me-name-row">
+            <div id="me-name" class="me-name"></div>
+            <span id="me-badge" class="role-badge role-admin hidden">站长</span>
+          </div>
+          <div class="me-online">在线</div>
+        </div>
+      </div>
+      <div class="me-menu">
+        <button id="admin-btn" class="me-item admin-btn hidden">⚙ 站长管理</button>
+        <button id="theme-menu-btn" class="me-item"><span class="me-item-label">日间 / 夜间模式</span><span id="theme-menu-icon" class="me-item-icon"></span></button>
+        <button id="font-size-btn" class="me-item"><span class="me-item-label">字体大小</span><span id="font-size-icon" class="me-item-icon"></span></button>
+        <button id="fullscreen-btn" class="me-item"><span class="me-item-label">全屏模式</span><span id="fullscreen-icon" class="me-item-icon"></span></button>
+        <button id="change-username-btn" class="me-item">更改用户名</button>
+        <button id="change-password-btn" class="me-item">更改密码</button>
+        <button id="twofa-btn" class="me-item">两步验证</button>
+        <button id="logout-btn" class="me-item logout">退出登录</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 聊天视图 ===== -->
+  <section id="chat-view" class="chat-view hidden">
+    <header class="chat-header">
+      <button id="back-btn" class="icon-btn back-btn" title="返回">‹</button>
+      <div class="chat-title">
+        <div id="chat-name" class="chat-name">公共大厅</div>
+        <div id="chat-sub" class="chat-sub"></div>
+      </div>
+      <button id="delete-friend-btn" class="icon-btn delete-friend-btn hidden" title="删除联系人">✕</button>
+      <button id="group-settings-btn" class="icon-btn group-settings-btn hidden" title="群设置">⚙</button>
+    </header>
+
+    <div id="messages" class="messages"></div>
+
+    <div id="mention-panel" class="mention-panel hidden"></div>
+
+    <div id="draft-images" class="draft-images hidden"></div>
+    <div class="input-bar">
+      <button id="img-btn" class="img-btn" type="button" title="发送图片">＋</button>
+      <textarea id="msg-input" class="msg-input" placeholder="输入消息，Enter 发送" rows="1"></textarea>
+      <button id="send-btn" class="btn primary send-btn">发送</button>
+    </div>
+    <input id="msg-img-input" type="file" accept="image/*" multiple hidden>
+
+
+    <div id="request-panel" class="request-panel hidden">
+      <div class="request-panel-head">
+        <div class="request-panel-title">好友验证</div>
+        <div class="request-panel-sub">等待你处理的好友申请</div>
+      </div>
+      <div id="request-list" class="request-list request-panel-list"></div>
+    </div>
+
+    <div id="group-request-panel" class="request-panel hidden">
+      <div class="request-panel-head">
+        <div class="request-panel-title">群申请</div>
+        <div class="request-panel-sub">等待你处理的入群申请</div>
+      </div>
+      <div id="group-request-list" class="request-list request-panel-list"></div>
+    </div>
+
+  </section>
+
+  <!-- ===== 朋友圈视图 ===== -->
+  <section id="moments-view" class="moments-view hidden">
+    <header class="chat-header">
+      <button id="moments-back-btn" class="icon-btn back-btn" title="返回">‹</button>
+      <div class="chat-title">
+        <div class="chat-name">朋友圈</div>
+      </div>
+      <button id="moment-post-btn" class="icon-btn" title="发布朋友圈" style="font-size:1.4rem;font-weight:700;">✎</button>
+    </header>
+    <div id="moments-list" class="moments-list"></div>
+  </section>
+
+  <!-- ===== 底部 dock 栏 ===== -->
+  <nav id="dock" class="dock">
+    <button class="dock-item dock-active" data-dock="messages">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      <span>消息</span>
+    </button>
+    <button class="dock-item" data-dock="contacts">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <span>通讯录</span>
+    </button>
+    <button class="dock-item" data-dock="discover">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>
+      <span>发现</span>
+    </button>
+    <button class="dock-item" data-dock="me">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <span>我的</span>
+    </button>
+  </nav>
+</div>
+
+<!-- 搜索群聊弹窗 -->
+<div id="search-group-modal" class="modal-overlay hidden">
+  <div class="modal-box search-group-box">
+    <div class="modal-head">
+      <h3>🔍 搜索群聊</h3>
+      <button class="modal-close" data-close="search-group-modal">×</button>
+    </div>
+    <div class="search-group-input-row">
+      <input type="text" id="search-group-input" placeholder="输入群名称关键词..." autocomplete="off">
+      <button id="search-group-submit" class="btn primary">搜索</button>
+    </div>
+    <div id="search-group-results" class="search-results"></div>
+  </div>
+</div>
+
+<!-- 添加好友弹窗 -->
+<div id="friend-modal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>添加好友</h3>
+      <button class="modal-close" data-close="friend-modal">×</button>
+    </div>
+    <input id="friend-username" type="text" placeholder="输入对方用户名" autocomplete="off">
+    <div id="friend-msg" class="auth-msg"></div>
+    <button id="friend-submit" class="btn primary block">发送验证</button>
+    <p class="auth-note">发送验证后，对方通过验证你们才会成为好友，请稍候。</p>
+  </div>
+</div>
+
+<!-- 创建群聊弹窗 -->
+<div id="group-modal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>创建群聊</h3>
+      <button class="modal-close" data-close="group-modal">×</button>
+    </div>
+    <input id="group-name" type="text" placeholder="群名称（1-20 位）" maxlength="20" autocomplete="off">
+    <div class="group-picker">
+      <div class="group-picker-title">选择好友（至少 1 位）</div>
+      <div id="group-member-list"></div>
+    </div>
+    <div id="group-msg" class="auth-msg"></div>
+    <button id="group-submit" class="btn primary block">创建</button>
+  </div>
+</div>
+
+<!-- 群设置弹窗（群主） -->
+<div id="group-settings-modal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>群设置</h3>
+      <button class="modal-close" data-close="group-settings-modal">×</button>
+    </div>
+    <div class="group-picker gs-owner-only">
+      <div class="group-picker-title">群头像（点击更换）</div>
+      <div class="gs-avatar-row">
+        <div id="gs-avatar" class="gs-avatar"></div>
+        <input id="gs-avatar-input" type="file" accept="image/*" hidden>
+        <button id="gs-avatar-btn" class="btn admin-btn-sm">更换头像</button>
+        <span id="gs-avatar-msg" class="auth-msg"></span>
+      </div>
+    </div>
+    <div class="group-picker gs-owner-only">
+      <div class="group-picker-title">修改群名称</div>
+      <div class="admin-row">
+        <input id="gs-name" type="text" maxlength="20" placeholder="新群名称" class="admin-input">
+        <button id="gs-rename-btn" class="btn primary admin-btn-sm">改名</button>
+      </div>
+    </div>
+    <div class="group-picker">
+      <div class="group-picker-title">群成员</div>
+      <div id="gs-member-list" class="admin-user-list"></div>
+    </div>
+    <button id="gs-add-member-btn" class="btn primary block">添加成员</button>
+    <div id="gs-msg" class="auth-msg"></div>
+    <button id="gs-dissolve-btn" class="btn danger block">解散群聊</button>
+    <button id="gs-leave-btn" class="btn danger block hidden">退出群聊</button>
+  </div>
+</div>
+
+<!-- 添加成员弹窗 -->
+<div id="add-member-modal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>添加成员</h3>
+      <button class="modal-close" data-close="add-member-modal">×</button>
+    </div>
+    <div class="group-picker">
+      <div class="group-picker-title">选择好友（未入群的好友）</div>
+      <div id="add-member-list"></div>
+    </div>
+    <div id="add-member-msg" class="auth-msg"></div>
+    <button id="add-member-submit" class="btn primary block">确定</button>
+  </div>
+</div>
+
+<!-- 修改用户名弹窗 -->
+<div id="cu-modal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>更改用户名</h3>
+      <button class="modal-close" data-close="cu-modal">×</button>
+    </div>
+    <input id="cu-username" type="text" placeholder="新用户名（2-20 位，不可重复）" maxlength="20" autocomplete="off">
+    <div id="cu-msg" class="auth-msg"></div>
+    <button id="cu-submit" class="btn primary block">确认更改</button>
+    <p class="auth-note">更改后好友将看到你的新名字，历史消息中的名字也会同步更新。</p>
+  </div>
+</div>
+
+<!-- 修改密码弹窗 -->
+<div id="cp-modal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>更改密码</h3>
+      <button class="modal-close" data-close="cp-modal">×</button>
+    </div>
+    <input id="cp-old" type="password" placeholder="当前密码" autocomplete="current-password">
+    <input id="cp-new" type="password" placeholder="新密码（4-64 位）" autocomplete="new-password">
+    <input id="cp-new2" type="password" placeholder="确认新密码" autocomplete="new-password">
+    <div id="cp-msg" class="auth-msg"></div>
+    <button id="cp-submit" class="btn primary block">确认更改</button>
+  </div>
+</div>
+
+<!-- 两步验证弹窗 -->
+<div id="twofa-modal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>两步验证</h3>
+      <button class="modal-close" data-close="twofa-modal">×</button>
+    </div>
+    <div id="twofa-setup" class="hidden">
+      <p class="auth-note">1. 打开 Microsoft Authenticator / Google Authenticator / Authy</p>
+      <p class="auth-note">2. 扫描下方二维码，或手动输入密钥</p>
+      <div id="twofa-qr" style="text-align:center;margin:8px 0;"></div>
+      <p class="auth-note" id="twofa-secret" style="word-break:break-all;text-align:center;"></p>
+      <p class="auth-note">3. 输入认证器显示的 6 位验证码</p>
+      <input id="twofa-code" type="text" placeholder="6 位验证码" inputmode="numeric" maxlength="6">
+      <div id="twofa-msg" class="auth-msg"></div>
+      <button id="twofa-confirm" class="btn primary block">确认绑定</button>
+    </div>
+    <div id="twofa-enabled-box" class="hidden">
+      <p class="auth-note" style="color:#34c98a;">✓ 已绑定认证器，可使用验证码登录</p>
+      <p class="auth-note">关闭后需重新扫码绑定。</p>
+      <input id="twofa-disable-code" type="text" placeholder="输入验证码以关闭" inputmode="numeric" maxlength="6">
+      <div id="twofa-msg2" class="auth-msg"></div>
+      <button id="twofa-disable" class="btn block">关闭两步验证</button>
+    </div>
+  </div>
+</div>
+
+<!-- 注册后推荐绑定弹窗 -->
+<div id="twofa-recommend-modal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <div class="modal-head"><h3>推荐绑定认证器</h3></div>
+    <p class="auth-note">绑定认证器后，可用动态验证码直接登录，无需密码，更安全。</p>
+    <div class="r-actions" style="justify-content:flex-end;margin-top:8px;">
+      <button id="twofa-recommend-skip" class="btn">还是算了</button>
+      <button id="twofa-recommend-bind" class="btn primary">立即绑定</button>
+    </div>
+  </div>
+</div>
+
+<!-- 字体大小弹窗 -->
+<div id="fs-modal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>字体大小</h3>
+      <button class="modal-close" data-close="fs-modal">×</button>
+    </div>
+    <div id="fs-options" class="fs-options">
+      <button class="fs-opt" data-size="sm">小</button>
+      <button class="fs-opt active" data-size="md">标准</button>
+      <button class="fs-opt" data-size="lg">大</button>
+      <button class="fs-opt" data-size="xl">特大</button>
+    </div>
+    <p class="auth-note">选择后立即生效，将记住你的选择。</p>
+  </div>
+</div>
+
+<!-- 发布朋友圈弹窗 -->
+<div id="moment-post-modal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>发布朋友圈</h3>
+      <button class="modal-close" data-close="moment-post-modal">×</button>
+    </div>
+    <textarea id="moment-text" class="moment-text" placeholder="这一刻的想法…" maxlength="2000"></textarea>
+    <div id="moment-images" class="moment-images"></div>
+    <input id="moment-image-input" type="file" accept="image/*" multiple hidden>
+    <div class="admin-row" style="margin-top:8px;">
+      <button id="moment-add-image-btn" class="btn admin-btn-sm">＋ 添加图片</button>
+      <span class="auth-note" style="flex:1;">最多 9 张</span>
+    </div>
+    <div id="moment-msg" class="auth-msg"></div>
+    <button id="moment-submit" class="btn primary block">发布</button>
+  </div>
+</div>
+
+<!-- 评论弹窗 -->
+<div id="moment-comment-modal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>评论</h3>
+      <button class="modal-close" data-close="moment-comment-modal">×</button>
+    </div>
+    <input id="moment-comment-input" type="text" placeholder="写评论…" maxlength="500" autocomplete="off">
+    <div id="moment-comment-msg" class="auth-msg"></div>
+    <button id="moment-comment-submit" class="btn primary block">发送</button>
+  </div>
+</div>
+
+<!-- 番茄小说 Warning 弹窗 -->
+<div id="tomato-modal" class="modal-overlay hidden">
+  <div class="modal-box tomato-modal-box">
+    <div class="modal-head">
+      <h3>警告</h3>
+      <button class="modal-close" data-close="tomato-modal">×</button>
+    </div>
+    <div class="tomato-warning">
+      <p>您将进入本站的同级网站，此站专注于看番茄小说和下载小说文件。</p>
+      <p>账号密码并不同步，当您第一次进入时，请务必重新注册一个新账号，并牢牢记住您的账户和密码。</p>
+    </div>
+    <button id="tomato-confirm-btn" class="btn primary block">我确认</button>
+  </div>
+</div>
+
+<!-- 长按消息菜单 -->
+<div id="msg-context-menu" class="msg-context-menu hidden">
+  <button id="copy-btn" class="msg-context-item hidden">复制</button>
+  <button id="recall-btn" class="msg-context-item">撤回</button>
+</div>
+
+<!-- 全局提示 -->
+<div id="toast" class="toast hidden"></div>
+
+<script src="/app.js?v=56"></script>
+</body>
+</html>

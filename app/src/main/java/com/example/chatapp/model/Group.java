@@ -11,6 +11,9 @@ public class Group {
     public int memberCount;
     public List<String> members = new ArrayList<>();
     public List<String> memberNames = new ArrayList<>();
+    public List<String> admins = new ArrayList<>();
+    public List<String> muted = new ArrayList<>();
+    public boolean allMuted = false;
     public static Group fromJson(JSONObject obj) {
         Group g = new Group();
         g.id = obj.optString("id", "");
@@ -32,6 +35,19 @@ public class Group {
                 g.memberNames.add(names.optString(i, ""));
             }
         }
+        JSONArray admins = obj.optJSONArray("admins");
+        if (admins != null) {
+            for (int i = 0; i < admins.length(); i++) {
+                g.admins.add(admins.optString(i, ""));
+            }
+        }
+        JSONArray muted = obj.optJSONArray("muted");
+        if (muted != null) {
+            for (int i = 0; i < muted.length(); i++) {
+                g.muted.add(muted.optString(i, ""));
+            }
+        }
+        g.allMuted = obj.optBoolean("allMuted", false);
         return g;
     }
 }

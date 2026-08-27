@@ -11,6 +11,12 @@ public class Message {
     public String content;
     public long time;
     public List<String> images = new ArrayList<>();
+    public String fileUrl;
+    public String fileName;
+    public long fileSize;
+    public String audioUrl;
+    public String audioName;
+    public long audioSize;
     public boolean recalled;
     // 引用消息
     public String quoteMsgId;
@@ -22,6 +28,12 @@ public class Message {
     }
     public boolean hasImage() {
         return images != null && !images.isEmpty();
+    }
+    public boolean hasFile() {
+        return fileUrl != null && !fileUrl.isEmpty();
+    }
+    public boolean hasAudio() {
+        return audioUrl != null && !audioUrl.isEmpty();
     }
     public boolean isImageUrl() {
         if (content == null) return false;
@@ -36,6 +48,12 @@ public class Message {
         m.content = obj.optString("content", "");
         m.time = obj.optLong("time", System.currentTimeMillis());
         m.recalled = obj.optBoolean("recalled", false);
+        m.fileUrl = obj.optString("fileUrl", "");
+        m.fileName = obj.optString("fileName", "");
+        m.fileSize = obj.optLong("fileSize", 0);
+        m.audioUrl = obj.optString("audioUrl", "");
+        m.audioName = obj.optString("audioName", "");
+        m.audioSize = obj.optLong("audioSize", 0);
         JSONArray imgs = obj.optJSONArray("images");
         if (imgs != null) {
             for (int i = 0; i < imgs.length(); i++) {

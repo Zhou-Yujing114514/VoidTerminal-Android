@@ -9,7 +9,6 @@ import android.util.Base64;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -36,7 +35,10 @@ public class ProfileFragment extends Fragment {
     private static final String SERVER_URL = "https://buer.kdns.fr";
     private ImageView ivAvatar;
     private TextView tvUsername, tvUserId, tvServer;
-    private Button btnCustomBg;
+    private View btnCustomBg;
+    private View btnCustomStatus;
+    private View btnFloatingBall;
+    private android.widget.TextView tvFloatingStatus;
     private androidx.activity.result.ActivityResultLauncher<Intent> bgPickerLauncher;
     private ActivityResultLauncher<Intent> imagePickerLauncher;
     @Nullable
@@ -46,8 +48,10 @@ public class ProfileFragment extends Fragment {
         ivAvatar = view.findViewById(R.id.iv_avatar);
         tvUsername = view.findViewById(R.id.tv_username);
         tvUserId = view.findViewById(R.id.tv_user_id);
-        tvServer = view.findViewById(R.id.tv_server);
         btnCustomBg = view.findViewById(R.id.btn_custom_bg);
+        btnCustomStatus = view.findViewById(R.id.btn_custom_status);
+        btnFloatingBall = view.findViewById(R.id.btn_floating_ball);
+        tvFloatingStatus = view.findViewById(R.id.tv_floating_status);
         bgPickerLauncher = registerForActivityResult(
                 new androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult(),
                 result -> {
@@ -56,15 +60,19 @@ public class ProfileFragment extends Fragment {
                         if (uri != null) saveBackground(uri);
                     }
                 });
-        Button btnLogout = view.findViewById(R.id.btn_logout);
-        Button btnCreateGroup = view.findViewById(R.id.btn_create_group);
-        Button btnEditProfile = view.findViewById(R.id.btn_edit_profile);
-        Button btnNovel = view.findViewById(R.id.btn_novel);
-        Button btnAdmin = view.findViewById(R.id.btn_admin);
+        View btnLogout = view.findViewById(R.id.btn_logout);
+        View btnCreateGroup = view.findViewById(R.id.btn_create_group);
+        View btnEditProfile = view.findViewById(R.id.btn_edit_profile);
+        View btnNovel = view.findViewById(R.id.btn_novel);
+        View btnCheckUpdate = view.findViewById(R.id.btn_check_update);
+        View btnAdmin = view.findViewById(R.id.btn_admin);
         tvUsername.setText(SharedPrefs.getUsername(getContext()));
         tvUserId.setText("ID: " + SharedPrefs.getUserId(getContext()));
-        tvServer.setText(SERVER_URL);
         String avatar = getContext().getSharedPreferences("chatapp_prefs", 0).getString("avatar", "");
+        // 优先从 WebSocketManager 获取最新头像
+        if (WebSocketManager.getInstance().currentUser != null && WebSocketManager.getInstance().currentUser.avatar != null) {
+            avatar = WebSocketManager.getInstance().currentUser.avatar;
+        }
         if (avatar != null && !avatar.isEmpty()) {
             String url = avatar.startsWith("/") ? SERVER_URL + avatar : avatar;
             long version = SharedPrefs.getAvatarVersion(getContext());
@@ -77,8 +85,60 @@ public class ProfileFragment extends Fragment {
         btnAdmin.setOnClickListener(v -> startActivity(new Intent(getContext(), AdminActivity.class)));
         btnCreateGroup.setOnClickListener(v -> startActivity(new Intent(getContext(), CreateGroupActivity.class)));
         btnEditProfile.setOnClickListener(v -> showEditProfileDialog());
+        btnCustomStatus.setOnClickListener(v -> showStatusDialog());
+        btnFloatingBall.setOnClickListener(v -> toggleFloatingBall());
+        updateFloatingStatus();
         btnCustomBg.setOnClickListener(v -> showBgMenu());
-        btnNovel.setOnClickListener(v -> startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://morax.kdns.fr/"))));
+        btnNovel.setOnClickListener(v -> startActivity(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://morax.kdns.fr/"))));
+        btnCheckUpdate.setOnClickListener(v -> {
+            String currentVersion = "v8.2";
+            new AlertDialog.Builder(getContext())
+                .setTitle("设置")
+                .setItems(new String[]{"检查更新 (当前" + currentVersion + ")", "重连服务器", "注销账号"}, (d, which) -> {
+                    if (which == 0) {
+                        Toast.makeText(getContext(), "当前版本: " + currentVersion + "\n更新由管理员手动发布", Toast.LENGTH_LONG).show();
+                    } else if (which == 1) {
+                        // 重连服务器
+                        if (WebSocketManager.getInstance().isConnected()) {
+                            WebSocketManager.getInstance().disconnect();
+                        }
+                        String token = com.example.chatapp.util.SharedPrefs.getToken(getContext());
+                        if (token != null) {
+                            WebSocketManager.getInstance().connect(token);
+                        }
+                        Toast.makeText(getContext(), "正在重连服务器...", Toast.LENGTH_SHORT).show();
+                    } else if (which == 2) {
+                        // 注销账号
+                        new androidx.appcompat.app.AlertDialog.Builder(getContext())
+                            .setTitle("确认注销")
+                            .setMessage("确定注销账号吗？此操作不可恢复，所有数据将被删除！")
+                            .setPositiveButton("确认注销", (d2, w2) -> {
+                                String token = com.example.chatapp.util.SharedPrefs.getToken(getContext());
+                                com.example.chatapp.api.ApiClient.deleteAccount(token, new com.example.chatapp.api.ApiClient.Callback() {
+                                    @Override
+                                    public void onSuccess(org.json.JSONObject result) {
+                                        if (getActivity() != null) getActivity().runOnUiThread(() -> {
+                                            WebSocketManager.getInstance().disconnect();
+                                            com.example.chatapp.util.SharedPrefs.clear(getContext());
+                                            Intent intent = new Intent(getContext(), com.example.chatapp.LoginActivity.class);
+                                            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                                            startActivity(intent);
+                                            if (getActivity() != null) getActivity().finish();
+                                        });
+                                    }
+                                    @Override
+                                    public void onError(String error) {
+                                        if (getActivity() != null) getActivity().runOnUiThread(() ->
+                                            Toast.makeText(getContext(), "注销失败: " + error, Toast.LENGTH_SHORT).show());
+                                    }
+                                });
+                            })
+                            .setNegativeButton("取消", null)
+                            .show();
+                    }
+                })
+                .show();
+        });
         ivAvatar.setOnClickListener(v -> pickImage());
         btnLogout.setOnClickListener(v -> {
             WebSocketManager.getInstance().disconnect();
@@ -112,7 +172,11 @@ public class ProfileFragment extends Fragment {
                     String newPwd = etNewPassword.getText().toString();
                     String token = SharedPrefs.getToken(getContext());
                     // 修改用户名
-                    if (!newUsername.equals(SharedPrefs.getUsername(getContext())) && !newUsername.isEmpty()) {
+                    if (newUsername.equals(SharedPrefs.getUsername(getContext()))) {
+                        Toast.makeText(getContext(), "不能将命名设为与之前相同的名称", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    if (!newUsername.isEmpty()) {
                         ApiClient.changeUsername(token, newUsername, new ApiClient.Callback() {
                             @Override
                             public void onSuccess(JSONObject result) {
@@ -151,8 +215,29 @@ public class ProfileFragment extends Fragment {
                 .show();
     }
     private void pickImage() {
+        // 检查权限
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            if (androidx.core.content.ContextCompat.checkSelfPermission(getContext(), android.Manifest.permission.READ_MEDIA_IMAGES) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{android.Manifest.permission.READ_MEDIA_IMAGES}, 1001);
+                return;
+            }
+        } else {
+            if (androidx.core.content.ContextCompat.checkSelfPermission(getContext(), android.Manifest.permission.READ_EXTERNAL_STORAGE) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{android.Manifest.permission.READ_EXTERNAL_STORAGE}, 1001);
+                return;
+            }
+        }
         Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
         imagePickerLauncher.launch(intent);
+    }
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == 1001 && grantResults.length > 0 && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            pickImage();
+        } else {
+            Toast.makeText(getContext(), "需要存储权限才能选择头像", Toast.LENGTH_SHORT).show();
+        }
     }
     private void uploadAvatar(Uri uri) {
         try {
@@ -221,6 +306,41 @@ public class ProfileFragment extends Fragment {
         }
     }
 
+    private void showStatusDialog() {
+        final android.widget.EditText etStatus = new android.widget.EditText(getContext());
+        String currentStatus = "";
+        if (WebSocketManager.getInstance().currentUser != null) {
+            currentStatus = WebSocketManager.getInstance().currentUser.status != null ? WebSocketManager.getInstance().currentUser.status : "";
+        }
+        etStatus.setText(currentStatus);
+        etStatus.setHint("输入自定义状态（最多30字）");
+        etStatus.setMaxLines(1);
+        new androidx.appcompat.app.AlertDialog.Builder(getContext())
+            .setTitle("设置自定义状态")
+            .setView(etStatus)
+            .setPositiveButton("确定", (d, w) -> {
+                String status = etStatus.getText().toString().trim();
+                String token = com.example.chatapp.util.SharedPrefs.getToken(getContext());
+                com.example.chatapp.api.ApiClient.setStatus(token, status, new com.example.chatapp.api.ApiClient.Callback() {
+                    @Override
+                    public void onSuccess(org.json.JSONObject result) {
+                        if (getActivity() != null) getActivity().runOnUiThread(() -> {
+                            Toast.makeText(getContext(), "状态设置成功", Toast.LENGTH_SHORT).show();
+                            if (WebSocketManager.getInstance().currentUser != null) {
+                                WebSocketManager.getInstance().currentUser.status = status;
+                            }
+                        });
+                    }
+                    @Override
+                    public void onError(String error) {
+                        if (getActivity() != null) getActivity().runOnUiThread(() -> Toast.makeText(getContext(), "失败: " + error, Toast.LENGTH_SHORT).show());
+                    }
+                });
+            })
+            .setNegativeButton("取消", null)
+            .show();
+    }
+
     private void showBgMenu() {
         String[] items = {"选择背景图片", "恢复默认背景"};
         new AlertDialog.Builder(getContext())
@@ -242,6 +362,45 @@ public class ProfileFragment extends Fragment {
                     .remove("chat_bg_global").apply();
             Toast.makeText(getContext(), "已恢复默认背景", Toast.LENGTH_SHORT).show();
         }
+    }
+
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        updateFloatingStatus();
+    }
+
+    private void updateFloatingStatus() {
+        if (getActivity() == null) return;
+        android.content.SharedPreferences sp = getActivity().getSharedPreferences("chatapp_prefs", 0);
+        boolean enabled = sp.getBoolean("floating_ball_enabled", false);
+        if (tvFloatingStatus != null) {
+            tvFloatingStatus.setText(enabled ? "已开启" : "未开启");
+            tvFloatingStatus.setTextColor(enabled ? 0xFF4CAF50 : 0xFF999999);
+        }
+    }
+
+    private void toggleFloatingBall() {
+        android.content.SharedPreferences sp = getActivity().getSharedPreferences("chatapp_prefs", 0);
+        boolean enabled = sp.getBoolean("floating_ball_enabled", false);
+        if (enabled) {
+            getActivity().stopService(new android.content.Intent(getActivity(), com.example.chatapp.FloatingBallService.class));
+            sp.edit().putBoolean("floating_ball_enabled", false).apply();
+            android.widget.Toast.makeText(getActivity(), "悬浮球已关闭", android.widget.Toast.LENGTH_SHORT).show();
+        } else {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                if (!android.provider.Settings.canDrawOverlays(getActivity())) {
+                    android.widget.Toast.makeText(getActivity(), "请先开启悬浮窗权限", android.widget.Toast.LENGTH_SHORT).show();
+                    startActivity(new android.content.Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION));
+                    return;
+                }
+            }
+            getActivity().startService(new android.content.Intent(getActivity(), com.example.chatapp.FloatingBallService.class));
+            sp.edit().putBoolean("floating_ball_enabled", true).apply();
+            android.widget.Toast.makeText(getActivity(), "悬浮球已开启", android.widget.Toast.LENGTH_SHORT).show();
+        }
+        updateFloatingStatus();
     }
 
 }

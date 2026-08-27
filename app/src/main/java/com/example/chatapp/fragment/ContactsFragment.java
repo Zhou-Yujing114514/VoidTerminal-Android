@@ -17,6 +17,8 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.example.chatapp.ChatActivity;
 import com.example.chatapp.R;
 import com.example.chatapp.adapter.FriendAdapter;
+import com.example.chatapp.adapter.GroupAdapter;
+import com.example.chatapp.model.Group;
 import com.example.chatapp.api.ApiClient;
 import com.example.chatapp.model.User;
 import com.example.chatapp.util.SharedPrefs;
@@ -27,7 +29,12 @@ import java.util.List;
 public class ContactsFragment extends Fragment implements WebSocketManager.WSListener {
     private RecyclerView rvFriends;
     private FriendAdapter adapter;
-    private TextView btnFriendRequests;
+    private RecyclerView rvGroups;
+    private GroupAdapter groupAdapter;
+    private TextView tabFriends;
+    private TextView tabGroups;
+    private boolean isFriendsTab = true;
+    private View btnFriendRequests;
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
@@ -44,6 +51,25 @@ public class ContactsFragment extends Fragment implements WebSocketManager.WSLis
             startActivity(intent);
         });
         rvFriends.setAdapter(adapter);
+
+        // 群聊列表
+        rvGroups = view.findViewById(R.id.rv_groups);
+        rvGroups.setLayoutManager(new LinearLayoutManager(getContext()));
+        groupAdapter = new GroupAdapter(WebSocketManager.getInstance().groups, serverBase, group -> {
+            Intent intent = new Intent(getContext(), ChatActivity.class);
+            intent.putExtra("room_id", group.id);
+            intent.putExtra("room_name", group.name);
+            intent.putExtra("is_global", false);
+            intent.putExtra("is_group", true);
+            startActivity(intent);
+        });
+        rvGroups.setAdapter(groupAdapter);
+
+        // 标签页切换
+        tabFriends = view.findViewById(R.id.tab_friends);
+        tabGroups = view.findViewById(R.id.tab_groups);
+        tabFriends.setOnClickListener(v -> switchTab(true));
+        tabGroups.setOnClickListener(v -> switchTab(false));
         view.findViewById(R.id.btn_add_friend).setOnClickListener(v -> showAddFriendDialog());
         view.findViewById(R.id.btn_search_group).setOnClickListener(v -> showSearchGroupDialog());
         btnFriendRequests = view.findViewById(R.id.btn_friend_requests);
@@ -192,20 +218,53 @@ public class ContactsFragment extends Fragment implements WebSocketManager.WSLis
                 .show();
     }
     private void updateFriendRequestBadge() {
-        if (btnFriendRequests != null) {
-            int count = WebSocketManager.getInstance().friendRequests.size();
-            if (count > 0) {
-                btnFriendRequests.setText("好友请求(" + count + ")");
-            } else {
-                btnFriendRequests.setText("好友请求");
+        if (btnFriendRequests != null && btnFriendRequests instanceof android.view.ViewGroup) {
+            android.view.ViewGroup vg = (android.view.ViewGroup) btnFriendRequests;
+            for (int i = 0; i < vg.getChildCount(); i++) {
+                android.view.View child = vg.getChildAt(i);
+                if (child instanceof android.widget.TextView) {
+                    android.widget.TextView tv = (android.widget.TextView) child;
+                    int count = WebSocketManager.getInstance().friendRequests.size();
+                    if (count > 0) {
+                        tv.setText("好友请求(" + count + ")");
+                    } else {
+                        tv.setText("好友请求");
+                    }
+                    break;
+                }
             }
         }
     }
+    private void switchTab(boolean toFriends) {
+        isFriendsTab = toFriends;
+        if (toFriends) {
+            tabFriends.setTextColor(getResources().getColor(R.color.accent));
+            tabFriends.setTypeface(null, android.graphics.Typeface.BOLD);
+            tabFriends.setBackgroundResource(R.drawable.bg_tab_active);
+            tabGroups.setTextColor(getResources().getColor(R.color.text_secondary));
+            tabGroups.setTypeface(null, android.graphics.Typeface.NORMAL);
+            tabGroups.setBackgroundResource(0);
+            rvFriends.setVisibility(View.VISIBLE);
+            rvGroups.setVisibility(View.GONE);
+        } else {
+            tabGroups.setTextColor(getResources().getColor(R.color.accent));
+            tabGroups.setTypeface(null, android.graphics.Typeface.BOLD);
+            tabGroups.setBackgroundResource(R.drawable.bg_tab_active);
+            tabFriends.setTextColor(getResources().getColor(R.color.text_secondary));
+            tabFriends.setTypeface(null, android.graphics.Typeface.NORMAL);
+            tabFriends.setBackgroundResource(0);
+            rvGroups.setVisibility(View.VISIBLE);
+            rvFriends.setVisibility(View.GONE);
+            if (groupAdapter != null) groupAdapter.updateData(WebSocketManager.getInstance().groups);
+        }
+    }
+
     @Override
     public void onResume() {
         super.onResume();
         WebSocketManager.getInstance().addListener(this);
         if (adapter != null) adapter.notifyDataSetChanged();
+        if (groupAdapter != null) groupAdapter.updateData(WebSocketManager.getInstance().groups);
         updateFriendRequestBadge();
     }
     @Override
@@ -229,6 +288,12 @@ public class ContactsFragment extends Fragment implements WebSocketManager.WSLis
         if (getActivity() != null && adapter != null)
             getActivity().runOnUiThread(() -> adapter.notifyDataSetChanged());
     }
+    @Override public void onTyping(String fromUid) {}
+    @Override public void onMessageRead(String fromUid, String msgId) {}
+    @Override public void onGroupAnnouncement(String gid, String text, long time) {}
+    @Override public void onFileUploadComplete(String fileId, String url, String filename, long size) {}
+    @Override public void onFileUploadError(String fileId, String error) {}
+    @Override public void onFileChunkAck(String fileId, int chunkIndex) {}
     @Override
     public void onMomentsUpdated() {}
     @Override
@@ -236,6 +301,9 @@ public class ContactsFragment extends Fragment implements WebSocketManager.WSLis
         if (getActivity() != null && adapter != null)
             getActivity().runOnUiThread(() -> adapter.notifyDataSetChanged());
     }
+
+    @Override
+    public void onMomentNotify(String action, String fromName, String momentText, String commentText) {}
     @Override
     public void onFriendRequestReceived() {
         if (getActivity() != null)
@@ -250,4 +318,11 @@ public class ContactsFragment extends Fragment implements WebSocketManager.WSLis
                 }
             });
     }
+    @Override
+    public void onTitleUpdate(String userId, String title) {}
+    @Override
+    public void onStatusUpdate(String userId, String status) {}
+    @Override
+    public void onPresenceUpdate() {}
+
 }

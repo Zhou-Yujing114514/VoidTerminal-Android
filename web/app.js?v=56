@@ -1,0 +1,2415 @@
+'use strict';
+
+const $ = (id) => document.getElementById(id);
+
+const THEMES = { dark: '#0f1117', light: '#f4f6f9' };
+
+function applyTheme(t) {
+  document.documentElement.dataset.theme = t;
+  localStorage.setItem('chat_theme', t);
+  document.querySelector('meta[name="theme-color"]').setAttribute('content', THEMES[t] || THEMES.dark);
+}
+function toggleTheme() {
+  const cur = document.documentElement.dataset.theme || 'dark';
+  applyTheme(cur === 'dark' ? 'light' : 'dark');
+  renderThemeMenuIcon();
+}
+function renderThemeMenuIcon() {
+  const icon = $('theme-menu-icon');
+  if (!icon) return;
+  const cur = document.documentElement.dataset.theme || 'dark';
+  icon.textContent = cur === 'dark' ? '☾' : '☀';
+}
+
+const FONT_SIZES = { sm: '小', md: '标准', lg: '大', xl: '特大' };
+function applyFontSize(size) {
+  const s = FONT_SIZES[size] ? size : 'md';
+  document.documentElement.dataset.font = s === 'md' ? '' : s;
+  localStorage.setItem('chat_font', s);
+  renderFontIcon();
+}
+function renderFontIcon() {
+  const icon = $('font-size-icon');
+  if (!icon) return;
+  const cur = document.documentElement.dataset.font || 'md';
+  icon.textContent = FONT_SIZES[cur];
+}
+function renderFontOptions() {
+  const cur = document.documentElement.dataset.font || 'md';
+  document.querySelectorAll('.fs-opt').forEach((o) => {
+    o.classList.toggle('active', o.dataset.size === cur);
+  });
+}
+function isFullscreen() {
+  return !!(document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement);
+}
+async function toggleFullscreen() {
+  const el = document.documentElement;
+  try {
+    if (isFullscreen()) {
+      if (document.exitFullscreen) await document.exitFullscreen();
+      else if (document.webkitExitFullscreen) await document.webkitExitFullscreen();
+      else if (document.msExitFullscreen) await document.msExitFullscreen();
+    } else {
+      if (el.requestFullscreen) await el.requestFullscreen();
+      else if (el.webkitRequestFullscreen) await el.webkitRequestFullscreen();
+      else if (el.msRequestFullscreen) await el.msRequestFullscreen();
+    }
+  } catch (e) {
+    toast('全屏切换失败：' + e.message);
+  }
+  renderFullscreenIcon();
+}
+function renderFullscreenIcon() {
+  const icon = $('fullscreen-icon');
+  if (!icon) return;
+  const on = isFullscreen();
+  icon.textContent = on ? '\u2B22' : '\u2B21';
+  icon.classList.toggle('fs-on', on);
+}
+
+
+
+let autoFsArmed = false;
+function tryFullscreen() {
+  const el = document.documentElement;
+  if (el.requestFullscreen) return el.requestFullscreen();
+  if (el.webkitRequestFullscreen) {
+    return new Promise((res, rej) => { el.webkitRequestFullscreen(() => res()); });
+  }
+  if (el.msRequestFullscreen) return el.msRequestFullscreen();
+  return Promise.reject(new Error('unsupported'));
+}
+function armAutoFullscreen() {
+  if (autoFsArmed || isFullscreen()) return;
+  autoFsArmed = true;
+  document.addEventListener('pointerdown', function onceFs() {
+    autoFsArmed = false;
+    tryFullscreen().catch(() => {}).finally(renderFullscreenIcon);
+  }, { once: true });
+}
+function autoEnterFullscreen() {
+  if (isFullscreen()) return;
+  tryFullscreen()
+    .catch(() => {})
+    .finally(() => {
+      if (!isFullscreen()) armAutoFullscreen();
+      renderFullscreenIcon();
+    });
+}
+
+const state = {
+  token: '',
+  me: null,
+  ws: null,
+  online: new Map(),     // id -> {id, username}
+  friends: new Map(),    // id -> {id, username}
+  groups: new Map(),     // gid -> group
+  nameMap: new Map(),    // id -> username
+  avatarMap: new Map(),  // id -> avatar url
+  globalMsgs: [],
+  dmHist: new Map(),     // peerId -> [msg]
+  groupHist: new Map(),  // gid -> [msg]
+  unread: new Map(),     // 'global' | 'dm:id' | 'g:gid' -> count
+  requests: [],          // 待处理的加好友验证 [{id, from, fromName, time}]
+  groupRequests: [],     // 待处理的入群申请 [{id, gid, groupName, from, fromName, time}]
+  showGroupRequests: false,
+  activeRoom: { type: 'global', id: null },
+  showRequests: false,
+  isAdmin: false,
+  hallName: '公共大厅',
+  serverFull: false,
+  dockTab: 'messages',
+  moments: [],
+};
+
+const AVATAR_COLORS = [
+  'linear-gradient(135deg,#3b82f6,#8b5cf6)',
+  'linear-gradient(135deg,#ef4444,#f97316)',
+  'linear-gradient(135deg,#10b981,#06b6d4)',
+  'linear-gradient(135deg,#f59e0b,#ef4444)',
+  'linear-gradient(135deg,#8b5cf6,#ec4899)',
+  'linear-gradient(135deg,#14b8a6,#3b82f6)',
+];
+
+function avatarStyle(name) {
+  let h = 0;
+  for (const c of name) h = (h * 31 + c.codePointAt(0)) % AVATAR_COLORS.length;
+  return AVATAR_COLORS[h];
+}
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+function avatarEl(name, url, cls) {
+  const av = el('div', 'avatar' + (cls ? ' ' + cls : ''), (name || '?')[0].toUpperCase());
+  if (url) {
+    av.textContent = '';
+    av.style.backgroundImage = `url(${url})`;
+    av.style.backgroundSize = 'cover';
+    av.style.backgroundPosition = 'center';
+  } else {
+    av.style.background = avatarStyle(name || '?');
+  }
+  return av;
+}
+
+function fmtTime(ts) {
+  const d = new Date(ts);
+  const p = (n) => String(n).padStart(2, '0');
+  return `${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+function fmtDay(ts) {
+  const d = new Date(ts);
+  return `${d.getMonth() + 1}月${d.getDate()}日`;
+}
+
+function roomKeyStr(type, id) {
+  if (type === 'global') return 'global';
+  return (type === 'dm' ? 'dm:' : 'g:') + id;
+}
+
+function toast(text) {
+  const t = $('toast');
+  t.textContent = text;
+  t.classList.remove('hidden');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.add('hidden'), 2600);
+}
+
+/* ============ 视图切换 ============ */
+function showAuth() {
+  $('view-auth').classList.remove('hidden');
+  $('view-chat').classList.add('hidden');
+}
+function logoutLocal() {
+  state.token = '';
+  api('/api/logout', {});
+  state.ws && state.ws.close();
+  state.ws = null;
+  state.me = null;
+  state.showRequests = false;
+  $('admin-btn').classList.add('hidden');
+  closeChatView();
+  showAuth();
+}
+function showChat() {
+  $('view-auth').classList.add('hidden');
+  $('view-chat').classList.remove('hidden');
+}
+
+/* ============ dock 页面切换 ============ */
+function switchDock(tab) {
+  state.dockTab = tab;
+  closeMoments();
+  document.querySelectorAll('.page').forEach((p) => p.classList.remove('page-active'));
+  $('page-' + tab).classList.add('page-active');
+  document.querySelectorAll('.dock-item').forEach((b) => {
+    b.classList.toggle('dock-active', b.dataset.dock === tab);
+  });
+  closeChatView();
+}
+
+function closeChatView() {
+  if (state.showRequests) closeRequestPanel();
+  state.showRequests = false;
+  $('chat-view').classList.add('hidden');
+  renderConvList();
+  if (state.me) renderMessages();
+}
+
+/* ============ 认证 ============ */
+async function api(path, body) {
+  const res = await fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return res.json();
+}
+
+async function enterWithToken() {
+  const data = await api('/api/me', { token: state.token });
+  if (!data.ok) return false;
+  state.me = data.user;
+  return true;
+}
+
+async function onLogin(e) {
+  e.preventDefault();
+  const username = $('login-username').value.trim();
+  const password = $('login-password').value;
+  if (!username || !password) return;
+  const data = await api('/api/login', { username, password });
+  if (!data.ok) { $('login-msg').className = 'auth-msg'; $('login-msg').textContent = data.error; return; }
+  state.token = data.token;
+  state.me = data.user;
+  enterChat();
+}
+
+async function onRegister(e) {
+  e.preventDefault();
+  const username = $('reg-username').value.trim();
+  const password = $('reg-password').value;
+  const password2 = $('reg-password2').value;
+  if (password !== password2) { $('reg-msg').textContent = '两次输入的密码不一致'; return; }
+  const data = await api('/api/register', { username, password, password2 });
+  if (!data.ok) { $('reg-msg').textContent = data.error; return; }
+  state.token = data.token;
+  state.me = data.user;
+  enterChat();
+  // 推荐绑定认证器
+  $('twofa-recommend-modal').classList.remove('hidden');
+}
+
+async function onTotpLogin(e) {
+  e.preventDefault();
+  const username = $('totp-username').value.trim();
+  const code = $('totp-code').value.trim();
+  if (!username || !code) return;
+  const data = await api('/api/login-totp', { username, code });
+  if (!data.ok) { $('totp-msg').className = 'auth-msg'; $('totp-msg').textContent = data.error; return; }
+  state.token = data.token;
+  state.me = data.user;
+  enterChat();
+}
+
+/* ============ WebSocket ============ */
+function connectWS() {
+  const proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
+  const ws = new WebSocket(proto + location.host + '/ws');
+  state.ws = ws;
+
+  ws.onopen = () => ws.send(JSON.stringify({ type: 'auth', token: state.token }));
+
+  ws.onmessage = (ev) => {
+    let msg;
+    try { msg = JSON.parse(ev.data); } catch { return; }
+    handleMsg(msg);
+  };
+
+  ws.onclose = () => {
+    if (state.serverFull) {
+      setTimeout(() => {
+        state.serverFull = false;
+        if (state.ws && state.me) connectWS();
+      }, 30000);
+      return;
+    }
+    if (state.ws === ws && state.me) setTimeout(() => { if (state.ws && state.me) connectWS(); }, 2000);
+  };
+}
+
+function rebuildNameMap() {
+  state.nameMap.clear();
+  state.avatarMap.clear();
+  state.nameMap.set(state.me.id, state.me.username);
+  if (state.me.avatar) state.avatarMap.set(state.me.id, state.me.avatar);
+  for (const u of state.online.values()) {
+    state.nameMap.set(u.id, u.username);
+    if (u.avatar) state.avatarMap.set(u.id, u.avatar);
+  }
+  for (const u of state.friends.values()) {
+    state.nameMap.set(u.id, u.username);
+    if (u.avatar) state.avatarMap.set(u.id, u.avatar);
+  }
+  for (const g of state.groups.values()) {
+    g.members.forEach((id, i) => state.nameMap.set(id, g.memberNames[i] || state.nameMap.get(id) || ('用户' + id.slice(1))));
+    g.members.forEach((id, i) => { if (g.memberAvatars && g.memberAvatars[i]) state.avatarMap.set(id, g.memberAvatars[i]); });
+  }
+}
+
+function getAvatar(id) {
+  return state.avatarMap.get(id) || '';
+}
+
+function getName(id) {
+  return state.nameMap.get(id) || ('用户' + id.slice(1));
+}
+
+let mentionList = [];
+let mentionActive = -1;
+
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function highlightMentions(text) {
+  return escapeHtml(text).replace(/@([\u4e00-\u9fa5\w]+)/g, '<span class="mention">@$1</span>');
+}
+function currentMention() {
+  const input = $('msg-input');
+  const v = input.value;
+  const cursor = input.selectionStart;
+  if (state.activeRoom.type !== 'group') return null;
+  const idx = v.lastIndexOf('@', cursor - 1);
+  if (idx === -1) return null;
+  const between = v.slice(idx + 1, cursor);
+  if (/\s/.test(between)) return null;
+  if (idx > 0 && !/\s/.test(v[idx - 1])) return null;
+  return { start: idx, end: cursor, query: between };
+}
+function mentionMembers(query) {
+  const g = state.groups.get(state.activeRoom.id);
+  if (!g) return [];
+  const q = String(query || '').toLowerCase();
+  return (g.members || [])
+    .map((id, i) => ({ id, name: g.memberNames[i] || getName(id), avatar: (g.memberAvatars && g.memberAvatars[i]) || getAvatar(id), bot: !!(g.memberBots && g.memberBots[i]) }))
+    .filter((m) => !q || m.name.toLowerCase().includes(q));
+}
+function closeMentionPanel() {
+  const panel = $('mention-panel');
+  panel.classList.add('hidden');
+  panel.textContent = '';
+  mentionList = [];
+  mentionActive = -1;
+}
+function renderMentionPanel() {
+  const m = currentMention();
+  const panel = $('mention-panel');
+  if (!m) { closeMentionPanel(); return; }
+  const members = mentionMembers(m.query);
+  if (!members.length) { closeMentionPanel(); return; }
+  mentionList = members;
+  if (mentionActive < 0 || mentionActive >= members.length) mentionActive = 0;
+  panel.textContent = '';
+  members.forEach((mem, i) => {
+    const btn = el('button', 'mention-item' + (i === mentionActive ? ' active' : ''));
+    const av = avatarEl(mem.name, mem.avatar);
+    av.style.width = '28px';
+    av.style.height = '28px';
+    btn.appendChild(av);
+    const nm = el('span', '', mem.name);
+    nm.style.flex = '1';
+    btn.appendChild(nm);
+    if (mem.bot) btn.appendChild(el('span', 'role-badge role-bot', 'BOT'));
+    btn.onmousedown = (e) => { e.preventDefault(); pickMention(mem.name); };
+    panel.appendChild(btn);
+  });
+  panel.classList.remove('hidden');
+}
+function pickMention(name) {
+  const input = $('msg-input');
+  const m = currentMention();
+  if (!m) return;
+  const insert = '@' + name + ' ';
+  input.value = input.value.slice(0, m.start) + insert + input.value.slice(m.end);
+  const pos = m.start + insert.length;
+  input.setSelectionRange(pos, pos);
+  closeMentionPanel();
+  input.style.height = 'auto';
+  input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+  input.focus();
+}
+function autoMention(name) {
+  const input = $('msg-input');
+  const v = input.value;
+  const cursor = (input.selectionStart != null) ? input.selectionStart : v.length;
+  const insert = '@' + name + ' ';
+  input.value = v.slice(0, cursor) + insert + v.slice(cursor);
+  const pos = cursor + insert.length;
+  closeMentionPanel();
+  input.focus();
+  input.setSelectionRange(pos, pos);
+  input.style.height = 'auto';
+  input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+}
+function bindAvatarMention(av, name) {
+  let startTime = 0, startX = 0, startY = 0, ok = false;
+  const start = (e) => {
+    if (e.touches && e.cancelable) e.preventDefault();
+    const x = e.touches ? e.touches[0].clientX : e.clientX;
+    const y = e.touches ? e.touches[0].clientY : e.clientY;
+    startX = x; startY = y;
+    startTime = Date.now();
+    ok = true;
+  };
+  const move = (e) => {
+    if (!ok) return;
+    const x = e.touches ? e.touches[0].clientX : e.clientX;
+    const y = e.touches ? e.touches[0].clientY : e.clientY;
+    if (Math.abs(x - startX) > 10 || Math.abs(y - startY) > 10) ok = false;
+  };
+  const end = (e) => {
+    if (ok && (Date.now() - startTime) >= 500) {
+      if (e && e.cancelable) e.preventDefault();
+      autoMention(name);
+    }
+    ok = false;
+  };
+  av.addEventListener('touchstart', start, { passive: false });
+  av.addEventListener('touchmove', move, { passive: true });
+  av.addEventListener('touchend', end);
+  av.addEventListener('touchcancel', () => { ok = false; });
+  av.addEventListener('mousedown', start);
+  av.addEventListener('mousemove', move);
+  av.addEventListener('mouseup', end);
+  av.addEventListener('mouseleave', () => { ok = false; });
+  av.addEventListener('contextmenu', (e) => { e.preventDefault(); autoMention(name); });
+  av.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); });
+}
+function moveMention(delta) {
+  if (!mentionList.length) return;
+  mentionActive = (mentionActive + delta + mentionList.length) % mentionList.length;
+  renderMentionPanel();
+}
+function confirmMention() {
+  if (mentionActive >= 0 && mentionList[mentionActive]) pickMention(mentionList[mentionActive].name);
+}
+
+function handleMsg(msg) {
+  switch (msg.type) {
+    case 'hello': {
+      state.online.clear();
+      state.friends = new Map((msg.friends || []).map((u) => [u.id, u]));
+      state.groups = new Map((msg.groups || []).map((g) => [g.id, g]));
+      if (msg.self && msg.self.avatar) {
+        state.me.avatar = msg.self.avatar;
+        renderMeAvatar();
+      }
+      state.globalMsgs = msg.globalMsgs || [];
+      state.dmHist = new Map();
+      for (const [key, msgs] of Object.entries(msg.dmRooms || {})) {
+        const peer = key.split('_').find((id) => id !== state.me.id);
+        if (peer) state.dmHist.set(peer, msgs);
+      }
+      state.groupHist = new Map();
+      for (const [gid, msgs] of Object.entries(msg.groupMsgs || {})) {
+        state.groupHist.set(gid, msgs);
+      }
+      state.unread = new Map();
+      state.requests = msg.pendingRequests || [];
+      state.moments = msg.moments || [];
+      state.isAdmin = !!msg.isAdmin;
+      if (msg.hallName) state.hallName = msg.hallName;
+      $('admin-btn').classList.toggle('hidden', !state.isAdmin);
+      rebuildNameMap();
+      renderConvList();
+      renderRequestEntry();
+      renderMessages();
+      break;
+    }
+    case 'moments': {
+      state.moments = msg.moments || [];
+      if (!$('moments-view').classList.contains('hidden')) renderMoments();
+      break;
+    }
+    case 'presence': {
+      const before = new Set(state.online.keys());
+      const now = new Map(msg.online.map((u) => [u.id, u]));
+      state.online = now;
+      for (const u of now.values()) if (u.avatar) state.avatarMap.set(u.id, u.avatar);
+      rebuildNameMap();
+      const joined = [...now.keys()].filter((id) => !before.has(id) && id !== state.me.id);
+      const left = [...before.keys()].filter((id) => !now.has(id));
+      renderConvList();
+      renderMessages();
+      for (const id of joined) pushSystem(`「${getName(id)}」上线了`);
+      for (const id of left) pushSystem(`「${getName(id)}」离线了`);
+      break;
+    }
+    case 'global': {
+      state.globalMsgs.push({ id: msg.id, from: msg.from, fromName: msg.fromName, fromAvatar: msg.fromAvatar, fromRole: msg.fromRole, content: msg.content, images: msg.images, time: msg.time });
+      state.nameMap.set(msg.from, msg.fromName);
+      if (msg.fromAvatar) state.avatarMap.set(msg.from, msg.fromAvatar);
+      if (state.activeRoom.type === 'global') renderMessages();
+      else bumpUnread('global');
+      updateConvPreview();
+      break;
+    }
+    case 'dm': {
+      const peer = msg.from === state.me.id ? msg.to : msg.from;
+      const hist = state.dmHist.get(peer) || [];
+      hist.push({ id: msg.id, from: msg.from, fromName: msg.fromName, fromAvatar: msg.fromAvatar, fromRole: msg.fromRole, content: msg.content, images: msg.images, time: msg.time });
+      state.dmHist.set(peer, hist);
+      state.nameMap.set(msg.from, msg.fromName);
+      if (msg.fromAvatar) state.avatarMap.set(msg.from, msg.fromAvatar);
+      if (state.activeRoom.type === 'dm' && state.activeRoom.id === peer) {
+        renderMessages();
+      } else if (msg.from !== state.me.id) {
+        bumpUnread('dm:' + peer);
+      }
+      renderConvList();
+      break;
+    }
+    case 'group': {
+      const hist = state.groupHist.get(msg.gid) || [];
+      hist.push({ id: msg.id, from: msg.from, fromName: msg.fromName, fromAvatar: msg.fromAvatar, fromRole: msg.fromRole, content: msg.content, images: msg.images, time: msg.time });
+      state.groupHist.set(msg.gid, hist);
+      state.nameMap.set(msg.from, msg.fromName);
+      if (msg.fromAvatar) state.avatarMap.set(msg.from, msg.fromAvatar);
+      if (state.activeRoom.type === 'group' && state.activeRoom.id === msg.gid) {
+        renderMessages();
+      } else if (msg.from !== state.me.id) {
+        bumpUnread('g:' + msg.gid);
+      }
+      renderConvList();
+      break;
+    }
+    case 'group-created': {
+      state.groups.set(msg.group.id, msg.group);
+      rebuildNameMap();
+      renderConvList();
+      renderGroupPicker();
+      openRoom({ type: 'group', id: msg.group.id });
+      toast(`群「${msg.group.name}」创建成功`);
+      break;
+    }
+    case 'group-apply-request': {
+      const apply = msg.apply;
+      if (!apply) break;
+      const g = state.groups.get(apply.gid);
+      apply.groupName = g ? g.name : (apply.groupName || '未知群');
+      apply.fromAvatar = state.avatarMap.get(apply.from) || '';
+      if (!state.groupRequests.some((r) => r.id === apply.id)) {
+        state.groupRequests.push(apply);
+      }
+      renderGroupRequestEntry();
+      renderGroupRequestList();
+      toast(`「${apply.fromName}」申请加入「${apply.groupName}」`);
+      break;
+    }
+    case 'friend-request': {
+      state.requests.push(msg.request);
+      renderRequestEntry();
+      renderRequestList();
+      if (state.showRequests) {
+        $('chat-sub').textContent = `${state.requests.length} 个待处理申请`;
+      }
+      toast(`「${msg.request.fromName}」请求添加你为好友`);
+      break;
+    }
+    case 'request-sent': {
+      const fm = $('friend-msg');
+      if (msg.ok) {
+        fm.textContent = '';
+        $('friend-username').value = '';
+        fm.className = 'auth-msg ok';
+        fm.textContent = '验证请求已发送，等待对方通过';
+      } else {
+        fm.className = 'auth-msg';
+        fm.textContent = msg.error;
+      }
+      break;
+    }
+    case 'request-respond': {
+      if (msg.action === 'accept') {
+        toast(`「${msg.fromName}」通过了你的好友验证`);
+      } else {
+        toast(`「${msg.fromName}」拒绝了你的好友验证`);
+      }
+      break;
+    }
+    case 'friend-update': {
+      state.friends = new Map((msg.friends || []).map((u) => [u.id, u]));
+      rebuildNameMap();
+      renderConvList();
+      renderGroupPicker();
+      break;
+    }
+    case 'banned': {
+      toast(msg.error || '账号已被封禁');
+      logoutLocal();
+      break;
+    }
+    case 'kicked': {
+      toast(msg.error || '你已被移出服务器');
+      logoutLocal();
+      break;
+    }
+    case 'group-renamed': {
+      const g = state.groups.get(msg.gid);
+      if (g) { g.name = msg.group.name; state.groups.set(msg.gid, g); }
+      renderConvList();
+      if (state.activeRoom.type === 'group' && state.activeRoom.id === msg.gid) {
+        $('chat-name').textContent = msg.group.name;
+      }
+      toast(`群已更名为「${msg.group.name}」`);
+      break;
+    }
+    case 'group-member-removed': {
+      if (msg.userId === state.me.id) {
+        state.groups.delete(msg.gid);
+        state.groupHist.delete(msg.gid);
+        if (state.activeRoom.type === 'group' && state.activeRoom.id === msg.gid) {
+          openRoom({ type: 'global', id: null });
+        }
+        renderConvList();
+        toast('你已被移出该群');
+      } else {
+        const g = state.groups.get(msg.gid);
+        if (g) {
+          g.members = msg.group.members;
+          g.memberNames = msg.group.memberNames;
+          g.memberAvatars = msg.group.memberAvatars;
+          g.memberBots = msg.group.memberBots;
+          state.groups.set(msg.gid, g);
+        }
+        rebuildNameMap();
+        renderConvList();
+        renderMessages();
+      }
+      break;
+    }
+    case 'group-member-left': {
+      const g = state.groups.get(msg.gid);
+      if (g) {
+        g.members = msg.group.members;
+        g.memberNames = msg.group.memberNames;
+        g.memberAvatars = msg.group.memberAvatars;
+        g.memberBots = msg.group.memberBots;
+        state.groups.set(msg.gid, g);
+      }
+      rebuildNameMap();
+      renderConvList();
+      renderMessages();
+      break;
+    }
+    case 'group-left': {
+      state.groups.delete(msg.gid);
+      state.groupHist.delete(msg.gid);
+      if (state.activeRoom.type === 'group' && state.activeRoom.id === msg.gid) {
+        openRoom({ type: 'global', id: null });
+      }
+      renderConvList();
+      toast('你已退出群聊');
+      break;
+    }
+    case 'group-members-added': {
+      const g = state.groups.get(msg.gid);
+      if (g) {
+        g.members = msg.group.members;
+        g.memberNames = msg.group.memberNames;
+        g.memberAvatars = msg.group.memberAvatars;
+        g.memberBots = msg.group.memberBots;
+        state.groups.set(msg.gid, g);
+      } else {
+        state.groups.set(msg.gid, msg.group);
+      }
+      rebuildNameMap();
+      renderConvList();
+      renderMessages();
+      if (msg.added && msg.added.includes(state.me.id)) toast('你已被拉入群聊');
+      break;
+    }
+    case 'group-removed': {
+      state.groups.delete(msg.gid);
+      state.groupHist.delete(msg.gid);
+      if (state.activeRoom.type === 'group' && state.activeRoom.id === msg.gid) {
+        openRoom({ type: 'global', id: null });
+      }
+      renderConvList();
+      toast(msg.error || '你已被移出群聊');
+      break;
+    }
+    case 'group-dissolved': {
+      state.groups.delete(msg.gid);
+      state.groupHist.delete(msg.gid);
+      if (state.activeRoom.type === 'group' && state.activeRoom.id === msg.gid) {
+        openRoom({ type: 'global', id: null });
+      }
+      renderConvList();
+      toast('群已被解散');
+      break;
+    }
+    case 'friend-removed': {
+      state.friends.delete(msg.from);
+      if (state.activeRoom.type === 'dm' && state.activeRoom.id === msg.from) {
+        openRoom({ type: 'global', id: null });
+      }
+      renderConvList();
+      toast(`「${msg.fromName}」已删除你为联系人`);
+      break;
+    }
+    case 'group-avatar-updated': {
+      const g = state.groups.get(msg.gid);
+      if (g) { g.avatar = msg.avatar; state.groups.set(msg.gid, g); }
+      renderConvList();
+      if (state.activeRoom.type === 'group' && state.activeRoom.id === msg.gid) {
+        renderGsAvatar();
+      }
+      break;
+    }
+    case 'hall-renamed': {
+      state.hallName = msg.hallName;
+      if (state.activeRoom.type === 'global') $('chat-name').textContent = state.hallName;
+      renderConvList();
+      break;
+    }
+    case 'hall-cleared': {
+      state.globalMsgs = [];
+      if (state.activeRoom.type === 'global') renderMessages();
+      break;
+    }
+    case 'recalled': {
+      const { room, id } = msg;
+      if (room === 'global') {
+        state.globalMsgs = state.globalMsgs.filter((m) => m.id !== id);
+      } else if (room === 'dm') {
+        const peer = msg.from === state.me.id ? msg.to : msg.from;
+        const hist = state.dmHist.get(peer);
+        if (hist) state.dmHist.set(peer, hist.filter((m) => m.id !== id));
+      } else if (room === 'group') {
+        const gid = msg.gid;
+        const hist = state.groupHist.get(gid);
+        if (hist) state.groupHist.set(gid, hist.filter((m) => m.id !== id));
+      }
+      renderMessages();
+      renderConvList();
+      break;
+    }
+    case 'typing': {
+      const from = msg.from;
+      if (state.activeRoom.type === 'dm' && state.activeRoom.id === from) {
+        state.typingPeer = from;
+        state.typingTimer = setTimeout(() => { state.typingPeer = null; renderTypingStatus(); }, 3000);
+        renderTypingStatus();
+      }
+      break;
+    }
+    case 'read': {
+      const from = msg.from;
+      const msgId = msg.msgId;
+      if (state.activeRoom.type === 'dm' && state.activeRoom.id === from) {
+        state.lastReadMsgId = msgId;
+        // 查找消息时间戳
+        const msgs = currentMessages();
+        for (const m of msgs) {
+          if (m.id === msgId) {
+            state.lastReadTime = m.time;
+            break;
+          }
+        }
+        renderMessages();
+      }
+      break;
+    }
+    case 'group_announcement': {
+      const gid = msg.gid;
+      const text = msg.text;
+      if (!state.groupAnnouncements) state.groupAnnouncements = {};
+      state.groupAnnouncements[gid] = { text, time: msg.time || Date.now() };
+      if (state.activeRoom.type === 'group' && state.activeRoom.id === gid) {
+        renderGroupAnnouncement();
+        toast('群公告: ' + text);
+      }
+      break;
+    }
+    case 'error':
+      console.log('[主消息] 收到error:', msg.error);
+      // 如果是群申请相关错误，重置按钮状态
+      if (msg.error && (msg.error.includes('群') || msg.error.includes('申请'))) {
+        setTimeout(() => {
+          const btns = document.querySelectorAll('.search-apply-btn');
+          btns.forEach(b => {
+            if (b.textContent.includes('申请中') || b.disabled) {
+              b.textContent = '申请加入';
+              b.disabled = false;
+            }
+          });
+        }, 100);
+      }
+      if (msg.error === '认证失败') {
+        state.token = '';
+        state.me = null;
+        showAuth();
+      } else {
+        toast(msg.error);
+        if (msg.error.includes('在线人数已达上限')) {
+          state.serverFull = true;
+        }
+      }
+      break;
+  }
+}
+
+function bumpUnread(key) {
+  state.unread.set(key, (state.unread.get(key) || 0) + 1);
+}
+
+function pushSystem(text) {
+  state.globalMsgs.push({ from: 'system', fromName: '', content: text, time: Date.now() });
+  if (state.activeRoom.type === 'global') renderMessages();
+  updateConvPreview();
+}
+
+/* ============ 发送 ============ */
+async function sendMsg() {
+  if (sending) return;
+  const input = $('msg-input');
+  const content = sanitizeStr(input.value).trim();
+  const hasImages = msgDraftImages.length > 0;
+  if (!content && !hasImages) return;
+  const { type, id } = state.activeRoom;
+
+  const draftText = input.value;
+  const draftImgs = msgDraftImages.slice();
+
+  input.value = '';
+  input.style.height = 'auto';
+  msgDraftImages = [];
+  renderDraftImages();
+
+  sending = true;
+  try {
+    let images = [];
+    if (hasImages) {
+      for (const data of draftImgs) {
+        const res = await fetch('/api/upload-msg-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: state.token, data }),
+        });
+        let d = null;
+        try { d = await res.json(); } catch {}
+        if (!res.ok || !d || !d.ok) throw new Error((d && d.error) || '图片上传失败');
+        images.push(d.url);
+      }
+    }
+
+    const payload = { type, content };
+    if (type === 'dm') payload.to = id;
+    else if (type === 'group') payload.gid = id;
+    if (images.length) payload.images = images;
+
+    state.ws.send(JSON.stringify(payload));
+    pendingScrollBottom = true;
+    input.blur();
+    // 发送消息后清除输入状态
+    if (state.typingTimer) { clearTimeout(state.typingTimer); state.typingTimer = null; }
+  } catch (e) {
+    toast(e.message || '发送失败');
+    input.value = draftText;
+    msgDraftImages = draftImgs;
+    renderDraftImages();
+  } finally {
+    sending = false;
+  }
+}
+
+/* ============ 草稿图片 / 长按撤回 ============ */
+function renderDraftImages() {
+  const box = $('draft-images');
+  box.textContent = '';
+  box.classList.toggle('hidden', !msgDraftImages.length);
+  msgDraftImages.forEach((data, i) => {
+    const thumb = el('div', 'draft-thumb');
+    const img = document.createElement('img');
+    img.src = 'data:image/jpeg;base64,' + data;
+    thumb.appendChild(img);
+    const rm = el('button', 'rm', '×');
+    rm.onclick = () => { msgDraftImages.splice(i, 1); renderDraftImages(); };
+    thumb.appendChild(rm);
+    box.appendChild(thumb);
+  });
+}
+
+function openImagePreview(url) {
+  const ov = el('div', 'img-preview-overlay');
+  const img = document.createElement('img');
+  img.src = url;
+  ov.appendChild(img);
+  ov.onclick = () => ov.remove();
+  document.body.appendChild(ov);
+}
+
+function bindLongPress(node, handler) {
+  let timer = null;
+  let startX = 0, startY = 0;
+  let fired = false;
+  const start = (e) => {
+    const x = e.touches ? e.touches[0].clientX : e.clientX;
+    const y = e.touches ? e.touches[0].clientY : e.clientY;
+    startX = x; startY = y;
+    fired = false;
+    timer = setTimeout(() => { timer = null; fired = true; handler(x, y); }, 500);
+  };
+  const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
+  const end = () => { cancel(); if (fired) longPressAt = Date.now(); };
+  const move = (e) => {
+    if (!timer) return;
+    const x = e.touches ? e.touches[0].clientX : e.clientX;
+    const y = e.touches ? e.touches[0].clientY : e.clientY;
+    if (Math.abs(x - startX) > 10 || Math.abs(y - startY) > 10) cancel();
+  };
+  node.addEventListener('touchstart', start, { passive: true });
+  node.addEventListener('touchend', end);
+  node.addEventListener('touchcancel', end);
+  node.addEventListener('touchmove', move, { passive: true });
+  node.addEventListener('mousedown', start);
+  node.addEventListener('mouseup', end);
+  node.addEventListener('mouseleave', cancel);
+  node.addEventListener('contextmenu', (e) => { e.preventDefault(); longPressAt = Date.now(); handler(e.clientX, e.clientY); });
+}
+
+function showRecallMenu(m, x, y) {
+  if (!m.id) return;
+  recallTarget = m;
+  const menu = $('msg-context-menu');
+  menu.classList.remove('hidden');
+  $('copy-btn').classList.toggle('hidden', !m.content);
+  const w = menu.offsetWidth || 90;
+  const h = menu.offsetHeight || 40;
+  menu.style.left = Math.max(8, Math.min(x, window.innerWidth - w - 8)) + 'px';
+  menu.style.top = Math.max(8, Math.min(y, window.innerHeight - h - 8)) + 'px';
+}
+
+function hideRecallMenu() {
+  recallTarget = null;
+  $('msg-context-menu').classList.add('hidden');
+}
+
+/* ============ 房间 ============ */
+function roomTitle(type, id) {
+  if (type === 'global') return state.hallName;
+  if (type === 'dm') return getName(id);
+  const g = state.groups.get(id);
+  return g ? g.name : '群聊';
+}
+
+function roomSub(type, id) {
+  if (type === 'global') {
+    const n = state.online.size;
+    return n ? `${n} 人在线` : '';
+  }
+  if (type === 'dm') {
+    return state.online.has(id) ? '在线' : '离线';
+  }
+  const g = state.groups.get(id);
+  if (!g) return '';
+  const on = g.members.filter((m) => state.online.has(m)).length;
+  return `${g.memberNames.join('、')}（${on}/${g.members.length} 在线）`;
+}
+
+function openRoom(room) {
+  state.activeRoom = room;
+  state.unread.delete(roomKeyStr(room.type, room.id));
+  closeRequestPanel();
+  // 如果当前不在消息页，先切换到消息页
+  if (state.dockTab !== 'messages') {
+    switchDock('messages');
+  }
+  $('chat-name').textContent = roomTitle(room.type, room.id);
+  $('chat-sub').textContent = roomSub(room.type, room.id);
+  updateGroupSettingsBtn();
+  updateDeleteFriendBtn();
+  $('chat-view').classList.remove('hidden');
+  pendingScrollBottom = true;
+  renderMessages();
+  renderConvList();
+  $('msg-input').focus();
+}
+
+function updateGroupSettingsBtn() {
+  const g = state.activeRoom.type === 'group' ? state.groups.get(state.activeRoom.id) : null;
+  $('group-settings-btn').classList.toggle('hidden', !g);
+}
+
+function updateDeleteFriendBtn() {
+  const show = state.activeRoom.type === 'dm' && state.friends.has(state.activeRoom.id);
+  $('delete-friend-btn').classList.toggle('hidden', !show);
+}
+
+function currentMessages() {
+  const { type, id } = state.activeRoom;
+  if (type === 'global') return state.globalMsgs;
+  if (type === 'dm') return state.dmHist.get(id) || [];
+  return state.groupHist.get(id) || [];
+}
+
+/* ============ 朋友圈 ============ */
+let momentDraftImages = [];
+let commentTargetMid = null;
+let msgDraftImages = [];
+let recallTarget = null;
+let longPressAt = 0;
+let pendingScrollBottom = false;
+let sending = false;
+
+function openMoments() {
+  renderMoments();
+  $('moments-view').classList.remove('hidden');
+}
+
+function closeMoments() {
+  $('moments-view').classList.add('hidden');
+}
+
+function renderMoments() {
+  const box = $('moments-list');
+  box.textContent = '';
+  const list = [...state.moments].sort((a, b) => b.time - a.time);
+  if (!list.length) {
+    box.appendChild(el('div', 'moment-empty', '还没有朋友圈，快来发布第一条吧'));
+    return;
+  }
+  for (const m of list) box.appendChild(momentCardHTML(m));
+}
+
+function momentCardHTML(m) {
+  const card = el('div', 'moment-card');
+  const head = el('div', 'moment-head');
+  head.appendChild(avatarEl(m.authorName || '?', m.authorAvatar || ''));
+  const info = el('div', 'moment-info');
+  info.appendChild(el('div', 'moment-name', m.authorName || '未知'));
+  info.appendChild(el('div', 'moment-time', fmtDay(m.time) + ' ' + fmtTime(m.time)));
+  head.appendChild(info);
+  card.appendChild(head);
+
+  if (m.text) {
+    const t = el('div', 'moment-text');
+    t.textContent = m.text;
+    card.appendChild(t);
+  }
+  if (m.images && m.images.length) {
+    const grid = el('div', 'moment-grid' + (m.images.length === 1 ? ' single' : ''));
+    for (const url of m.images) {
+      const img = document.createElement('img');
+      img.src = url;
+      img.alt = '';
+      img.onclick = () => window.open(url, '_blank');
+      grid.appendChild(img);
+    }
+    card.appendChild(grid);
+  }
+
+  const actions = el('div', 'moment-actions');
+  const likeCount = (m.likes || []).length;
+  const liked = (m.likes || []).includes(state.me.id);
+  const likeBtn = el('button', 'moment-btn' + (liked ? ' liked' : ''), '赞' + (likeCount ? ' ' + likeCount : ''));
+  likeBtn.onclick = () => state.ws.send(JSON.stringify({ type: 'moment-like', mid: m.id }));
+  actions.appendChild(likeBtn);
+
+  const commentBtn = el('button', 'moment-btn', '评论');
+  commentBtn.onclick = () => openCommentModal(m.id);
+  actions.appendChild(commentBtn);
+
+  if (m.author === state.me.id) {
+    const delBtn = el('button', 'moment-btn del', '删除');
+    delBtn.onclick = () => {
+      if (confirm('确定删除这条朋友圈吗？')) state.ws.send(JSON.stringify({ type: 'moment-delete', mid: m.id }));
+    };
+    actions.appendChild(delBtn);
+  }
+  card.appendChild(actions);
+
+  const comments = el('div', 'moment-comments');
+  for (const c of (m.comments || [])) {
+    const cr = el('div', 'moment-comment');
+    cr.appendChild(el('span', 'c-name', (c.authorName || '未知') + ':'));
+    cr.appendChild(el('span', 'c-text', c.text));
+    if (c.author === state.me.id) {
+      const del = el('button', 'c-del', '删除');
+      del.onclick = () => state.ws.send(JSON.stringify({ type: 'moment-comment-delete', mid: m.id, cid: c.id }));
+      cr.appendChild(del);
+    }
+    comments.appendChild(cr);
+  }
+  card.appendChild(comments);
+
+  return card;
+}
+
+function openCommentModal(mid) {
+  commentTargetMid = mid;
+  $('moment-comment-input').value = '';
+  $('moment-comment-msg').textContent = '';
+  openModal('moment-comment-modal');
+  setTimeout(() => $('moment-comment-input').focus(), 50);
+}
+
+function renderMomentImages() {
+  const box = $('moment-images');
+  box.textContent = '';
+  momentDraftImages.forEach((data, i) => {
+    const thumb = el('div', 'moment-thumb');
+    const img = document.createElement('img');
+    img.src = 'data:image/jpeg;base64,' + data;
+    thumb.appendChild(img);
+    const rm = el('button', 'rm', '×');
+    rm.onclick = () => { momentDraftImages.splice(i, 1); renderMomentImages(); };
+    thumb.appendChild(rm);
+    box.appendChild(thumb);
+  });
+}
+
+function openMomentPostModal() {
+  momentDraftImages = [];
+  $('moment-text').value = '';
+  $('moment-msg').textContent = '';
+  $('moment-msg').className = 'auth-msg';
+  renderMomentImages();
+  openModal('moment-post-modal');
+  setTimeout(() => $('moment-text').focus(), 50);
+}
+
+function sanitizeStr(str) {
+  const s = String(str == null ? '' : str);
+  return (typeof s.toWellFormed === 'function') ? s.toWellFormed() : s;
+}
+
+async function submitMoment() {
+  const text = sanitizeStr($('moment-text').value).trim();
+  if (!text && !momentDraftImages.length) { $('moment-msg').textContent = '内容不能为空'; return; }
+  $('moment-msg').textContent = '';
+  $('moment-msg').className = 'auth-msg';
+  $('moment-submit').disabled = true;
+  try {
+    const res = await fetch('/api/moment-post', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: state.token, text, images: momentDraftImages }),
+    });
+    let data = null;
+    try { data = await res.json(); } catch {}
+    if (!res.ok || !data || !data.ok) {
+      $('moment-msg').textContent = (data && data.error) || ('发布失败（HTTP ' + res.status + '），可能是图片过大，请尝试压缩或减少图片');
+      $('moment-submit').disabled = false;
+      return;
+    }
+    closeModal('moment-post-modal');
+    $('moment-submit').disabled = false;
+    toast('发布成功');
+  } catch (e) {
+    $('moment-msg').textContent = '发布失败：' + e.message + '（图片过大时请减少张数或改用小图）';
+    $('moment-submit').disabled = false;
+  }
+}
+
+/* ============ 渲染 ============ */
+function renderMessages() {
+  $('chat-sub').textContent = roomSub(state.activeRoom.type, state.activeRoom.id);
+  const box = $('messages');
+  const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 120;
+  box.textContent = '';
+  const msgs = currentMessages();
+  let lastDay = '';
+  for (const m of msgs) {
+    if (m.from === 'system') {
+      box.appendChild(el('div', 'system-row', m.content));
+      continue;
+    }
+    if (state.activeRoom.type !== 'global') {
+      const day = fmtDay(m.time);
+      if (day !== lastDay) {
+        box.appendChild(el('div', 'system-row', day));
+        lastDay = day;
+      }
+    }
+    const me = m.from === state.me.id;
+    const senderName = m.fromName || getName(m.from) || ('用户' + (m.from || '').slice(1));
+    const senderAvatar = m.fromAvatar || getAvatar(m.from);
+    const row = el('div', 'msg-row ' + (me ? 'me' : 'other'));
+    const av = avatarEl(senderName, senderAvatar);
+    av.style.width = '36px';
+    av.style.height = '36px';
+    if (state.activeRoom.type === 'group' && !me && m.from !== 'system' && senderName) {
+      bindAvatarMention(av, senderName);
+    }
+    const wrap = el('div', 'msg-wrap');
+    const meta = el('div', 'msg-meta');
+    meta.appendChild(el('span', 'msg-sender', me ? '我' : senderName));
+    if (m.fromBot || senderName === 'DeepSeek') meta.appendChild(el('span', 'role-badge role-bot', 'BOT'));
+    if (m.fromRole === 'admin') meta.appendChild(el('span', 'role-badge role-admin', '站长'));
+    else if (state.activeRoom.type === 'group' && (state.groups.get(state.activeRoom.id) || {}).owner === m.from) {
+      meta.appendChild(el('span', 'role-badge role-owner', '群主'));
+    }
+    meta.appendChild(el('span', 'msg-time', fmtTime(m.time)));
+    // 已读/未读状态（仅私聊，仅自己发的消息）
+    if (me && state.activeRoom.type === 'dm') {
+      const isRead = (state.lastReadTime && m.time <= state.lastReadTime) || (state.lastReadMsgId && m.id === state.lastReadMsgId);
+      if (isRead) {
+        meta.appendChild(el('span', 'msg-read', '已读'));
+      } else if (!m.recalled) {
+        meta.appendChild(el('span', 'msg-unread', '未读'));
+      }
+    }
+    wrap.appendChild(meta);
+    const bubble = el('div', 'msg-bubble' + (me && state.me.id === 'u3' ? ' bubble-blue' : ''));
+    // 检测content是否是纯图片URL（兼容旧消息格式）
+    const isImgUrl = (u) => typeof u === 'string' && /^(https?:\/\/[^/]+)?\/(msgimg|uploads|moments|stickers)\/.+\.(png|jpg|jpeg|gif|webp)(\?.*)?$/i.test(u.trim());
+    let contentImages = [];
+    if (m.content && isImgUrl(m.content) && (!m.images || !m.images.length)) {
+      contentImages = [m.content.trim()];
+    }
+    if (m.content && !contentImages.length) {
+      const ts = document.createElement('span');
+      ts.innerHTML = highlightMentions(m.content);
+      bubble.appendChild(ts);
+    }
+    // 表情包
+    const allImages = (m.images && m.images.length) ? m.images : contentImages;
+    if (allImages.length) {
+      const grid = el('div', 'msg-images' + (allImages.length === 1 ? ' single' : ''));
+      for (const url of allImages) {
+        const img = document.createElement('img');
+        img.src = url;
+        img.alt = '';
+        img.onclick = () => { if (Date.now() - longPressAt < 500) return; openImagePreview(url); };
+        grid.appendChild(img);
+      }
+      bubble.appendChild(grid);
+    }
+    wrap.appendChild(bubble);
+    if (me && m.id) bindLongPress(row, (x, y) => showRecallMenu(m, x, y));
+    row.appendChild(av);
+    row.appendChild(wrap);
+    box.appendChild(row);
+  }
+  if (pendingScrollBottom || nearBottom) {
+    box.scrollTop = box.scrollHeight;
+  }
+  pendingScrollBottom = false;
+}
+
+function convItemHTML(room, opts) {
+  const { name, preview, avatarText, avatarBg, avatarUrl, isGroup, nameTag } = opts;
+  const item = el('button', 'conv-item ' + (isGroup ? 'group-item' : 'friend-item'));
+  item.dataset.room = JSON.stringify(room);
+  const av = avatarEl(avatarText, avatarUrl);
+  av.classList.add('conv-avatar');
+  if (!avatarUrl) av.style.background = avatarBg;
+  const info = el('div', 'conv-info');
+  const nameRow = el('div', 'conv-name');
+  nameRow.textContent = name;
+  if (nameTag) nameRow.appendChild(nameTag);
+  info.appendChild(nameRow);
+  info.appendChild(el('div', 'conv-preview', preview));
+  item.appendChild(av);
+  item.appendChild(info);
+  const active = state.activeRoom.type === room.type && state.activeRoom.id === room.id;
+  if (active) item.classList.add('active');
+  const unread = state.unread.get(roomKeyStr(room.type, room.id)) || 0;
+  if (unread) item.appendChild(el('span', 'conv-unread', String(unread)));
+  else if (room.type === 'dm') {
+    const dot = el('span', 'conv-status ' + (state.online.has(room.id) ? 'on' : 'off'), '●');
+    item.appendChild(dot);
+  }
+  item.onclick = () => openRoom(room);
+  return item;
+}
+
+function globalPreview() {
+  const last = state.globalMsgs[state.globalMsgs.length - 1];
+  if (!last) return '在这里畅所欲言';
+  const n = last.fromName || getName(last.from) || ('用户' + (last.from || '').slice(1));
+  return last.from === 'system' ? last.content : `${n}：${last.content}`;
+}
+
+function updateConvPreview() {
+  const item = document.querySelector('.conv-item[data-room*="global"]');
+  if (item && item.querySelector('.conv-preview')) {
+    item.querySelector('.conv-preview').textContent = globalPreview();
+  }
+}
+
+function renderConvList() {
+  const search = ($('contact-search').value || '').trim().toLowerCase();
+  const q = (s) => !search || String(s).toLowerCase().includes(search);
+
+  // 公共大厅
+  const globalItem = document.querySelector('.conv-item[data-room*="global"]');
+  if (globalItem) {
+    globalItem.querySelector('.conv-name').textContent = state.hallName;
+    globalItem.querySelector('.conv-preview').textContent = globalPreview();
+    globalItem.classList.toggle('active', state.activeRoom.type === 'global');
+    const unread = state.unread.get('global') || 0;
+    const oldBadge = globalItem.querySelector('.conv-unread');
+    if (oldBadge) oldBadge.remove();
+    if (unread) globalItem.appendChild(el('span', 'conv-unread', String(unread)));
+  }
+
+  const gs = [...state.groups.values()].sort((a, b) => a.createdAt - b.createdAt);
+  const fs = [...state.friends.values()].sort((a, b) => a.username.localeCompare(b.username, 'zh'));
+
+  // 消息页：群聊
+  const groupBox = $('group-list');
+  groupBox.textContent = '';
+  const gq = gs.filter((g) => q(g.name));
+  if (!gq.length) groupBox.appendChild(el('div', 'conv-section', search ? '无匹配群聊' : '暂无群聊'));
+  for (const g of gq) {
+    const last = (state.groupHist.get(g.id) || []).slice(-1)[0];
+    const preview = last ? `${last.fromName || getName(last.from) || '用户'}：${last.content}` : '群聊已创建';
+    groupBox.appendChild(convItemHTML(
+      { type: 'group', id: g.id },
+      { name: g.name, preview, avatarText: g.name[0].toUpperCase(), avatarBg: avatarStyle(g.name), avatarUrl: g.avatar || '', isGroup: true }
+    ));
+  }
+
+  // 消息页：好友
+  const friendBox = $('friend-list');
+  friendBox.textContent = '';
+  const fq = fs.filter((u) => q(u.username));
+  if (!fq.length) friendBox.appendChild(el('div', 'conv-section', search ? '无匹配好友' : '暂无好友'));
+  for (const u of fq) {
+    const last = (state.dmHist.get(u.id) || []).slice(-1)[0];
+    const preview = last ? `${last.fromName || getName(last.from) || '用户'}：${last.content}` : '添加好友即可私聊';
+    const tag = u.role === 'admin' ? el('span', 'role-badge role-admin', '站长') : null;
+    friendBox.appendChild(convItemHTML(
+      { type: 'dm', id: u.id },
+      { name: u.username, preview, avatarText: u.username[0].toUpperCase(), avatarBg: avatarStyle(u.username), avatarUrl: u.avatar || getAvatar(u.id), isGroup: false, nameTag: tag }
+    ));
+  }
+
+  // 通讯录页：群聊（全部，不做搜索过滤）
+  const cgBox = $('contacts-group-list');
+  cgBox.textContent = '';
+  if (!gs.length) cgBox.appendChild(el('div', 'conv-section', '暂无群聊'));
+  for (const g of gs) {
+    cgBox.appendChild(convItemHTML(
+      { type: 'group', id: g.id },
+      { name: g.name, preview: '', avatarText: g.name[0].toUpperCase(), avatarBg: avatarStyle(g.name), avatarUrl: g.avatar || '', isGroup: true }
+    ));
+  }
+
+  // 通讯录页：好友（全部）
+  const cfBox = $('contacts-friend-list');
+  cfBox.textContent = '';
+  if (!fs.length) cfBox.appendChild(el('div', 'conv-section', '暂无好友'));
+  for (const u of fs) {
+    const tag = u.role === 'admin' ? el('span', 'role-badge role-admin', '站长') : null;
+    cfBox.appendChild(convItemHTML(
+      { type: 'dm', id: u.id },
+      { name: u.username, preview: '', avatarText: u.username[0].toUpperCase(), avatarBg: avatarStyle(u.username), avatarUrl: u.avatar || getAvatar(u.id), isGroup: false, nameTag: tag }
+    ));
+  }
+}
+
+function renderGroupPicker() {
+  const box = $('group-member-list');
+  box.textContent = '';
+  const fs = [...state.friends.values()].sort((a, b) => a.username.localeCompare(b.username, 'zh'));
+  if (!fs.length) {
+    box.appendChild(el('div', 'group-empty', '还没有好友，先去添加好友吧'));
+    return;
+  }
+  for (const u of fs) {
+    const label = el('label', 'group-member-item');
+    const cb = el('input');
+    cb.type = 'checkbox';
+    cb.value = u.id;
+    cb.id = 'gm-' + u.id;
+    const av = avatarEl(u.username, u.avatar || getAvatar(u.id));
+    av.classList.add('g-avatar');
+    const name = el('span', '', u.username);
+    name.style.flex = '1';
+    label.appendChild(cb);
+    label.appendChild(av);
+    label.appendChild(name);
+    label.onclick = (e) => { if (e.target !== cb) cb.checked = !cb.checked; };
+    box.appendChild(label);
+  }
+}
+
+/* ============ 弹窗 ============ */
+function openModal(id) { $(id).classList.remove('hidden'); }
+function closeModal(id) { $(id).classList.add('hidden'); }
+
+/* ============ 好友验证 ============ */
+function renderRequestEntry() {
+  const n = state.requests.length;
+  $('request-entry').classList.toggle('hidden', n === 0);
+  $('request-count').textContent = String(n);
+  $('request-entry-c').classList.toggle('hidden', n === 0);
+  $('request-count-c').textContent = String(n);
+}
+
+function renderRequestList() {
+  const box = $('request-list');
+  box.textContent = '';
+  if (!state.requests.length) {
+    box.appendChild(el('div', 'request-empty', '暂无待处理的验证请求'));
+    if (state.showRequests) {
+      $('chat-sub').textContent = '暂无待处理申请';
+      renderRequestEntry();
+    }
+    return;
+  }
+  if (state.showRequests) {
+    $('chat-sub').textContent = `${state.requests.length} 个待处理申请`;
+    renderRequestEntry();
+  }
+  for (const r of state.requests) {
+    const card = el('div', 'request-card');
+    const av = avatarEl(r.fromName, r.fromAvatar);
+    av.classList.add('g-avatar');
+    card.appendChild(av);
+    const nameBox = el('div', '', '');
+    nameBox.style.flex = '1';
+    nameBox.appendChild(el('div', 'r-name', r.fromName));
+    nameBox.appendChild(el('div', 'r-time', '请求添加你为好友 · ' + fmtTime(r.time)));
+    card.appendChild(nameBox);
+    const actions = el('div', 'r-actions');
+    const acceptBtn = el('button', 'btn accept', '通过');
+    const denyBtn = el('button', 'btn deny', '拒绝');
+    acceptBtn.onclick = () => respondRequest(r.id, 'accept');
+    denyBtn.onclick = () => respondRequest(r.id, 'deny');
+    actions.appendChild(acceptBtn);
+    actions.appendChild(denyBtn);
+    card.appendChild(actions);
+    box.appendChild(card);
+  }
+}
+
+function respondRequest(requestId, action) {
+  state.ws.send(JSON.stringify({ type: 'request-respond', requestId, action }));
+  state.requests = state.requests.filter((r) => r.id !== requestId);
+  renderRequestEntry();
+  renderRequestList();
+  if (state.showRequests && !state.requests.length) {
+    closeRequestPanel();
+    renderMessages();
+  }
+}
+
+// ===== 群申请相关 =====
+function renderGroupRequestEntry() {
+  const n = state.groupRequests.length;
+  const entry = $('group-request-entry');
+  if (entry) {
+    entry.classList.toggle('hidden', n === 0);
+    $('group-request-count').textContent = String(n);
+  }
+}
+
+function renderGroupRequestList() {
+  const box = $('group-request-list');
+  if (!box) return;
+  box.textContent = '';
+  if (!state.groupRequests.length) {
+    box.appendChild(el('div', 'request-empty', '暂无待处理的入群申请'));
+    if (state.showGroupRequests) {
+      $('chat-sub').textContent = '暂无待处理群申请';
+      renderGroupRequestEntry();
+    }
+    return;
+  }
+  if (state.showGroupRequests) {
+    $('chat-sub').textContent = `${state.groupRequests.length} 个待处理群申请`;
+    renderGroupRequestEntry();
+  }
+  for (const r of state.groupRequests) {
+    const card = el('div', 'request-card');
+    const av = avatarEl(r.fromName, r.fromAvatar);
+    av.classList.add('g-avatar');
+    card.appendChild(av);
+    const nameBox = el('div', '', '');
+    nameBox.style.flex = '1';
+    nameBox.appendChild(el('div', 'r-name', r.fromName));
+    nameBox.appendChild(el('div', 'r-time', '申请加入「' + (r.groupName || '未知群') + '」 · ' + fmtTime(r.time)));
+    card.appendChild(nameBox);
+    const actions = el('div', 'r-actions');
+    const acceptBtn = el('button', 'btn accept', '通过');
+    const denyBtn = el('button', 'btn deny', '拒绝');
+    acceptBtn.onclick = () => respondGroupRequest(r.id, 'accept');
+    denyBtn.onclick = () => respondGroupRequest(r.id, 'deny');
+    actions.appendChild(acceptBtn);
+    actions.appendChild(denyBtn);
+    card.appendChild(actions);
+    box.appendChild(card);
+  }
+}
+
+function respondGroupRequest(applyId, action) {
+  state.ws.send(JSON.stringify({ type: 'group-apply-respond', applyId, action }));
+  state.groupRequests = state.groupRequests.filter((r) => r.id !== applyId);
+  renderGroupRequestEntry();
+  renderGroupRequestList();
+  if (state.showGroupRequests && !state.groupRequests.length) {
+    closeGroupRequestPanel();
+    renderMessages();
+  }
+}
+
+function openGroupRequestPanel() {
+  state.showGroupRequests = true;
+  state.showRequests = false;
+  $('request-panel').classList.add('hidden');
+  $('chat-view').classList.remove('hidden');
+  $('messages').classList.add('hidden');
+  document.querySelector('.input-bar').classList.add('hidden');
+  $('group-request-panel').classList.remove('hidden');
+  $('chat-name').textContent = '群申请';
+  $('chat-sub').textContent = state.groupRequests.length ? `${state.groupRequests.length} 个待处理群申请` : '暂无待处理群申请';
+  renderGroupRequestList();
+}
+
+function closeGroupRequestPanel() {
+  state.showGroupRequests = false;
+  $('group-request-panel').classList.add('hidden');
+}
+
+function openRequestPanel() {
+  state.showRequests = true;
+  $('chat-view').classList.remove('hidden');
+  $('messages').classList.add('hidden');
+  document.querySelector('.input-bar').classList.add('hidden');
+  $('request-panel').classList.remove('hidden');
+  $('chat-name').textContent = '好友验证';
+  $('chat-sub').textContent = state.requests.length ? `${state.requests.length} 个待处理申请` : '暂无待处理申请';
+  renderRequestList();
+}
+
+function renderGsAvatar() {
+  const g = state.groups.get(state.activeRoom.id);
+  const box = $('gs-avatar');
+  if (!g) return;
+  box.textContent = '';
+  box.style.backgroundImage = '';
+  if (g.avatar) {
+    box.style.backgroundImage = `url(${g.avatar})`;
+  } else {
+    box.style.background = avatarStyle(g.name);
+    box.appendChild(el('span', '', g.name[0].toUpperCase()));
+  }
+}
+
+function openGroupSettings() {
+  const g = state.groups.get(state.activeRoom.id);
+  if (!g) return;
+  const isOwner = g.owner === state.me.id;
+  $('gs-msg').textContent = '';
+  $('gs-name').value = g.name;
+  $('gs-avatar-msg').textContent = '';
+  $('gs-avatar-msg').className = 'auth-msg';
+  renderGsAvatar();
+  document.querySelectorAll('.gs-owner-only').forEach((el2) => el2.classList.toggle('hidden', !isOwner));
+  $('gs-add-member-btn').classList.toggle('hidden', !isOwner);
+  $('gs-dissolve-btn').classList.toggle('hidden', !isOwner);
+  $('gs-leave-btn').classList.toggle('hidden', isOwner);
+  const box = $('gs-member-list');
+  box.textContent = '';
+  for (let i = 0; i < g.members.length; i++) {
+    const mid = g.members[i];
+    const name = g.memberNames[i] || getName(mid);
+    const isBot = !!(g.memberBots && g.memberBots[i]);
+    const row = el('div', 'admin-user-row');
+    const av = avatarEl(name, g.memberAvatars && g.memberAvatars[i]);
+    av.classList.add('g-avatar');
+    row.appendChild(av);
+    const info = el('div', '', '');
+    info.style.flex = '1';
+    info.appendChild(el('span', '', name));
+    if (isBot) info.appendChild(el('span', 'role-badge role-bot', 'BOT'));
+    row.appendChild(info);
+    if (mid === g.owner) {
+      row.appendChild(el('span', 'role-badge role-owner', '群主'));
+    } else if (isOwner) {
+      const rmBtn = el('button', 'btn admin-btn-sm', '移除');
+      rmBtn.onclick = () => {
+        if (!confirm(`确定将「${name}」移出群聊吗？`)) return;
+        state.ws.send(JSON.stringify({ type: 'group-remove-member', gid: g.id, userId: mid }));
+      };
+      row.appendChild(rmBtn);
+    }
+    box.appendChild(row);
+  }
+  openModal('group-settings-modal');
+}
+
+function openAddMemberModal() {
+  $('add-member-msg').textContent = '';
+  renderAddMemberList();
+  openModal('add-member-modal');
+}
+
+function renderAddMemberList() {
+  const g = state.groups.get(state.activeRoom.id);
+  const box = $('add-member-list');
+  box.textContent = '';
+  if (!g) return;
+  const candidates = [...state.friends.values()]
+    .filter((u) => !g.members.includes(u.id))
+    .sort((a, b) => a.username.localeCompare(b.username, 'zh'));
+  if (!candidates.length) {
+    box.appendChild(el('div', 'group-empty', '没有可添加的好友'));
+    return;
+  }
+  for (const u of candidates) {
+    const label = el('label', 'group-member-item');
+    const cb = el('input');
+    cb.type = 'checkbox';
+    cb.value = u.id;
+    cb.id = 'am-' + u.id;
+    const av = avatarEl(u.username, u.avatar || getAvatar(u.id));
+    av.classList.add('g-avatar');
+    const name = el('span', '', u.username);
+    name.style.flex = '1';
+    if (u.isBot) name.appendChild(el('span', 'role-badge role-bot', 'BOT'));
+    label.appendChild(cb);
+    label.appendChild(av);
+    label.appendChild(name);
+    label.onclick = (e) => { if (e.target !== cb) cb.checked = !cb.checked; };
+    box.appendChild(label);
+  }
+}
+
+function closeRequestPanel() {
+  state.showRequests = false;
+  $('request-panel').classList.add('hidden');
+  $('messages').classList.remove('hidden');
+  document.querySelector('.input-bar').classList.remove('hidden');
+}
+
+/* ============ 侧栏 ============ */
+function closeSidebar() { switchDock('messages'); }
+
+/* ============ 启动 ============ */
+function renderMeAvatar() {
+  const av = $('me-avatar');
+  const url = state.me.avatar || getAvatar(state.me.id);
+  av.textContent = '';
+  av.style.backgroundImage = url ? `url(${url})` : '';
+  av.style.backgroundSize = url ? 'cover' : '';
+  av.style.backgroundPosition = url ? 'center' : '';
+  if (!url) {
+    av.style.background = avatarStyle(state.me.username);
+    const c = el('span', '', state.me.username[0].toUpperCase());
+    av.appendChild(c);
+  }
+}
+
+async function uploadAvatar(file) {
+  if (!file || !/^image\//.test(file.type)) { toast('请选择图片文件'); return; }
+  if (file.size > 5 * 1024 * 1024) { toast('图片不能超过 5MB'); return; }
+  toast('正在上传…');
+  try {
+    const data = await resizeImage(file, 256);
+    const res = await api('/api/avatar', { token: state.token, data });
+    if (!res.ok) { toast(res.error || '上传失败'); return; }
+    state.me.avatar = res.avatar;
+    state.avatarMap.set(state.me.id, res.avatar);
+    renderMeAvatar();
+    renderConvList();
+    renderMessages();
+    toast('头像已更新');
+  } catch (e) {
+    toast('头像上传失败：' + e.message);
+  }
+}
+
+function resizeImage(file, max) {
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, max / Math.max(img.width, img.height));
+        const w = Math.max(1, Math.round(img.width * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', 0.85).split(',')[1]);
+      };
+      img.onerror = () => reject(new Error('无法读取图片'));
+      img.src = fr.result;
+    };
+    fr.onerror = () => reject(new Error('无法读取文件'));
+    fr.readAsDataURL(file);
+  });
+}
+
+function renderMeBadge() {
+  const b = $('me-badge');
+  b.classList.toggle('hidden', state.me.role !== 'admin');
+}
+
+function enterChat() {
+  $('me-name').textContent = state.me.username;
+  renderMeBadge();
+  renderMeAvatar();
+  $('admin-btn').classList.toggle('hidden', !state.isAdmin);
+  showChat();
+  switchDock('messages');
+  connectWS();
+  autoEnterFullscreen();
+}
+
+function setupEvents() {
+  $('theme-menu-btn').onclick = toggleTheme;
+  $('font-size-btn').onclick = () => {
+    renderFontOptions();
+    openModal('fs-modal');
+  };
+  $('fullscreen-btn').onclick = toggleFullscreen;
+  document.addEventListener('fullscreenchange', renderFullscreenIcon);
+  document.addEventListener('webkitfullscreenchange', renderFullscreenIcon);
+  document.addEventListener('msfullscreenchange', renderFullscreenIcon);
+  $('fs-options').querySelectorAll('.fs-opt').forEach((o) => {
+    o.onclick = () => {
+      applyFontSize(o.dataset.size);
+      closeModal('fs-modal');
+    };
+  });
+
+  document.querySelectorAll('.auth-tab').forEach((tab) => {
+    tab.onclick = () => {
+      document.querySelectorAll('.auth-tab').forEach((t) => t.classList.toggle('active', t === tab));
+      $('form-login').classList.toggle('hidden', tab.dataset.tab !== 'login');
+      $('form-totp').classList.toggle('hidden', tab.dataset.tab !== 'totp');
+      $('form-register').classList.toggle('hidden', tab.dataset.tab !== 'register');
+    };
+  });
+  $('form-login').onsubmit = onLogin;
+  $('form-totp').onsubmit = onTotpLogin;
+  $('form-register').onsubmit = onRegister;
+
+  const globalItem = document.querySelector('.conv-item[data-room*="global"]');
+  globalItem.onclick = () => openRoom({ type: 'global', id: null });
+
+  $('send-btn').onclick = sendMsg;
+  $('img-btn').onclick = () => $('msg-img-input').click();
+  $('msg-img-input').onchange = async (e) => {
+    const files = [...e.target.files];
+    e.target.value = '';
+    for (const f of files) {
+      if (!/^image\//.test(f.type)) { toast('请选择图片文件'); continue; }
+      if (f.size > 8 * 1024 * 1024) { toast('单张图片不能超过 5MB'); continue; }
+      if (msgDraftImages.length >= 9) { toast('最多 9 张图片'); break; }
+      try {
+        const data = await resizeImage(f, 1440);
+        msgDraftImages.push(data);
+        renderDraftImages();
+      } catch (err) { toast('图片处理失败：' + err.message); }
+    }
+  };
+  $('copy-btn').onclick = () => {
+    if (!recallTarget) return;
+    const m = recallTarget;
+    if (!m.content) { toast('该消息无文本'); hideRecallMenu(); return; }
+    navigator.clipboard.writeText(m.content).then(() => toast('已复制')).catch(() => toast('复制失败'));
+    hideRecallMenu();
+  };
+  $('recall-btn').onclick = () => {
+    if (!recallTarget) return;
+    const m = recallTarget;
+    const room = state.activeRoom.type;
+    const payload = { type: 'recall', room, id: m.id };
+    if (room === 'dm') payload.to = state.activeRoom.id;
+    else if (room === 'group') payload.gid = state.activeRoom.id;
+    state.ws.send(JSON.stringify(payload));
+    hideRecallMenu();
+  };
+  document.addEventListener('click', () => {
+    if (Date.now() - longPressAt < 500) return;
+    if (!$('msg-context-menu').classList.contains('hidden')) hideRecallMenu();
+  });
+
+  const autoGrow = (t) => {
+    t.style.height = 'auto';
+    t.style.height = Math.min(t.scrollHeight, 120) + 'px';
+  };
+  $('msg-input').addEventListener('input', () => {
+    autoGrow($('msg-input'));
+    renderMentionPanel();
+  });
+  $('msg-input').addEventListener('keydown', (e) => {
+    const panelOpen = !$('mention-panel').classList.contains('hidden');
+    if (panelOpen) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); moveMention(1); return; }
+      if (e.key === 'ArrowUp') { e.preventDefault(); moveMention(-1); return; }
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); confirmMention(); return; }
+      if (e.key === 'Tab') { e.preventDefault(); confirmMention(); return; }
+      if (e.key === 'Escape') { e.preventDefault(); closeMentionPanel(); return; }
+    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); }
+  });
+
+  $('logout-btn').onclick = () => {
+    logoutLocal();
+  };
+
+  // 头像上传
+  $('me-avatar').onclick = () => $('avatar-input').click();
+  $('avatar-input').onchange = (e) => {
+    uploadAvatar(e.target.files[0]);
+    e.target.value = '';
+  };
+
+  $('contact-search').addEventListener('input', renderConvList);
+
+  // 添加好友（发送验证）
+  $('add-friend-btn').onclick = () => {
+    $('friend-msg').textContent = '';
+    $('friend-msg').className = 'auth-msg';
+    openModal('friend-modal');
+    setTimeout(() => $('friend-username').focus(), 50);
+  };
+  $('friend-submit').onclick = () => {
+    const username = $('friend-username').value.trim();
+    if (!username) return;
+    $('friend-msg').textContent = '';
+    $('friend-msg').className = 'auth-msg';
+    state.ws.send(JSON.stringify({ type: 'friend-request', username }));
+  };
+  $('friend-username').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') $('friend-submit').click();
+  });
+
+  // 好友验证
+  $('request-entry').onclick = openRequestPanel;
+  $('request-entry-c').onclick = openRequestPanel;
+
+  // 站长管理
+  $('admin-btn').onclick = () => { location.href = '/admin.html'; };
+
+  // 更改用户名 / 密码
+  $('change-username-btn').onclick = () => {
+    $('cu-msg').textContent = '';
+    $('cu-msg').className = 'auth-msg';
+    $('cu-username').value = '';
+    openModal('cu-modal');
+    setTimeout(() => $('cu-username').focus(), 50);
+  };
+  $('cu-submit').onclick = async () => {
+    const name = $('cu-username').value.trim();
+    if (!name) { $('cu-msg').textContent = '请输入新用户名'; return; }
+    const data = await api('/api/change-username', { token: state.token, newUsername: name });
+    if (!data.ok) { $('cu-msg').textContent = data.error; return; }
+    state.me.username = data.user.username;
+    rebuildNameMap();
+    $('me-name').textContent = state.me.username;
+    renderMeBadge();
+    renderMeAvatar();
+    renderConvList();
+    renderMessages();
+    closeModal('cu-modal');
+    toast('用户名已改为「' + data.user.username + '」');
+  };
+  $('cu-username').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') $('cu-submit').click();
+  });
+
+  $('change-password-btn').onclick = () => {
+    $('cp-msg').textContent = '';
+    $('cp-msg').className = 'auth-msg';
+    $('cp-old').value = '';
+    $('cp-new').value = '';
+    $('cp-new2').value = '';
+    openModal('cp-modal');
+    setTimeout(() => $('cp-old').focus(), 50);
+  };
+  $('cp-submit').onclick = async () => {
+    const oldP = $('cp-old').value;
+    const newP = $('cp-new').value;
+    const newP2 = $('cp-new2').value;
+    if (!oldP || !newP) { $('cp-msg').textContent = '请填写完整'; return; }
+    if (newP !== newP2) { $('cp-msg').textContent = '两次输入的新密码不一致'; return; }
+    const data = await api('/api/change-password', { token: state.token, oldPassword: oldP, newPassword: newP, newPassword2: newP2 });
+    if (!data.ok) { $('cp-msg').textContent = data.error; return; }
+    closeModal('cp-modal');
+    toast('密码已修改');
+  };
+  $('cp-new2').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') $('cp-submit').click();
+  });
+
+  // 两步验证
+  $('twofa-btn').onclick = () => {
+    const enabled = state.me && state.me.totpEnabled;
+    $('twofa-msg').textContent = '';
+    $('twofa-msg2').textContent = '';
+    if (enabled) {
+      $('twofa-setup').classList.add('hidden');
+      $('twofa-enabled-box').classList.remove('hidden');
+      $('twofa-disable-code').value = '';
+    } else {
+      $('twofa-setup').classList.remove('hidden');
+      $('twofa-enabled-box').classList.add('hidden');
+      $('twofa-code').value = '';
+      $('twofa-qr').innerHTML = '';
+      $('twofa-secret').textContent = '';
+      api('/api/2fa/enable', { token: state.token }).then((data) => {
+        if (!data.ok) { $('twofa-msg').textContent = data.error; return; }
+        const qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent(data.uri);
+        $('twofa-qr').innerHTML = '<img src="' + qrUrl + '" width="200" height="200" alt="二维码">';
+        $('twofa-secret').textContent = '密钥：' + data.secret;
+      });
+    }
+    openModal('twofa-modal');
+  };
+
+  $('twofa-confirm').onclick = async () => {
+    const code = $('twofa-code').value.trim();
+    if (!code) { $('twofa-msg').textContent = '请输入验证码'; return; }
+    const data = await api('/api/2fa/confirm', { token: state.token, code });
+    if (!data.ok) { $('twofa-msg').textContent = data.error; return; }
+    if (state.me) state.me.totpEnabled = true;
+    closeModal('twofa-modal');
+    toast('两步验证已开启');
+  };
+
+  $('twofa-disable').onclick = async () => {
+    const code = $('twofa-disable-code').value.trim();
+    if (!code) { $('twofa-msg2').textContent = '请输入验证码'; return; }
+    const data = await api('/api/2fa/disable', { token: state.token, code });
+    if (!data.ok) { $('twofa-msg2').textContent = data.error; return; }
+    if (state.me) state.me.totpEnabled = false;
+    closeModal('twofa-modal');
+    toast('两步验证已关闭');
+  };
+
+  $('twofa-recommend-skip').onclick = () => closeModal('twofa-recommend-modal');
+  $('twofa-recommend-bind').onclick = () => {
+    closeModal('twofa-recommend-modal');
+    $('twofa-btn').click();
+  };
+
+  // 群设置
+  $('group-settings-btn').onclick = openGroupSettings;
+  $('delete-friend-btn').onclick = () => {
+    const { type, id } = state.activeRoom;
+    if (type !== 'dm') return;
+    const name = getName(id);
+    if (!confirm(`确定删除联系人「${name}」吗？删除后需重新发送验证才能再次私聊。`)) return;
+    state.ws.send(JSON.stringify({ type: 'unfriend', friendId: id }));
+    openRoom({ type: 'global', id: null });
+  };
+  $('gs-avatar-btn').onclick = () => $('gs-avatar-input').click();
+  $('gs-avatar-input').onchange = async (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!/^image\//.test(file.type)) { $('gs-avatar-msg').textContent = '请选择图片文件'; return; }
+    if (file.size > 5 * 1024 * 1024) { $('gs-avatar-msg').textContent = '图片不能超过 5MB'; return; }
+    $('gs-avatar-msg').textContent = '正在上传…';
+    try {
+      const data = await resizeImage(file, 256);
+      const res = await api('/api/group-avatar', { token: state.token, gid: state.activeRoom.id, data });
+      if (!res.ok) { $('gs-avatar-msg').className = 'auth-msg'; $('gs-avatar-msg').textContent = res.error || '上传失败'; return; }
+      const g = state.groups.get(state.activeRoom.id);
+      if (g) { g.avatar = res.avatar; state.groups.set(state.activeRoom.id, g); }
+      renderGsAvatar();
+      renderConvList();
+      $('gs-avatar-msg').className = 'auth-msg ok';
+      $('gs-avatar-msg').textContent = '群头像已更新';
+    } catch (err) {
+      $('gs-avatar-msg').className = 'auth-msg';
+      $('gs-avatar-msg').textContent = '上传失败：' + err.message;
+    }
+  };
+  $('gs-rename-btn').onclick = () => {
+    const name = $('gs-name').value.trim();
+    if (!name) { $('gs-msg').textContent = '请输入新群名'; return; }
+    state.ws.send(JSON.stringify({ type: 'group-rename', gid: state.activeRoom.id, name }));
+    $('gs-name').value = '';
+    $('gs-msg').textContent = '';
+  };
+  $('gs-dissolve-btn').onclick = () => {
+    const g = state.groups.get(state.activeRoom.id);
+    if (!g) return;
+    if (!confirm(`确定解散群「${g.name}」吗？此操作不可撤销`)) return;
+    state.ws.send(JSON.stringify({ type: 'group-dissolve', gid: state.activeRoom.id }));
+    closeModal('group-settings-modal');
+  };
+  $('gs-add-member-btn').onclick = openAddMemberModal;
+  $('gs-leave-btn').onclick = () => {
+    const g = state.groups.get(state.activeRoom.id);
+    if (!g) return;
+    if (!confirm(`确定退出群「${g.name}」吗？`)) return;
+    state.ws.send(JSON.stringify({ type: 'group-leave', gid: state.activeRoom.id }));
+    closeModal('group-settings-modal');
+  };
+  $('add-member-submit').onclick = () => {
+    const g = state.groups.get(state.activeRoom.id);
+    if (!g) return;
+    const members = [...document.querySelectorAll('#add-member-list input:checked')].map((i) => i.value);
+    if (!members.length) { $('add-member-msg').textContent = '请至少选择一位好友'; return; }
+    $('add-member-msg').textContent = '';
+    state.ws.send(JSON.stringify({ type: 'group-add-members', gid: g.id, members }));
+    closeModal('add-member-modal');
+  };
+
+  // 朋友圈
+  $('moments-entry').onclick = openMoments;
+  $('tomato-entry').onclick = () => openModal('tomato-modal');
+  $('tomato-confirm-btn').onclick = () => { closeModal('tomato-modal'); window.open('https://morax.kdns.fr', '_blank', 'noopener,noreferrer'); };
+  $('moments-back-btn').onclick = closeMoments;
+  $('moment-post-btn').onclick = openMomentPostModal;
+  $('moment-add-image-btn').onclick = () => $('moment-image-input').click();
+  $('moment-image-input').onchange = async (e) => {
+    const files = [...e.target.files];
+    e.target.value = '';
+    for (const f of files) {
+      if (!/^image\//.test(f.type)) { toast('请选择图片文件'); continue; }
+      if (f.size > 5 * 1024 * 1024) { toast('单张图片不能超过 5MB'); continue; }
+      if (momentDraftImages.length >= 9) { toast('最多 9 张图片'); break; }
+      try {
+        const data = await resizeImage(f, 1080);
+        momentDraftImages.push(data);
+        renderMomentImages();
+      } catch (err) { toast('图片处理失败：' + err.message); }
+    }
+  };
+  $('moment-submit').onclick = submitMoment;
+  $('moment-comment-submit').onclick = () => {
+    const text = $('moment-comment-input').value.trim();
+    if (!text) { $('moment-comment-msg').textContent = '评论不能为空'; return; }
+    if (!commentTargetMid) return;
+    $('moment-comment-msg').textContent = '';
+    state.ws.send(JSON.stringify({ type: 'moment-comment', mid: commentTargetMid, text }));
+    closeModal('moment-comment-modal');
+  };
+  $('moment-comment-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') $('moment-comment-submit').click();
+  });
+
+  // dock 栏
+  document.querySelectorAll('.dock-item').forEach((btn) => {
+    btn.onclick = () => switchDock(btn.dataset.dock);
+  });
+  $('back-btn').onclick = () => {
+    if (state.showRequests) {
+      closeRequestPanel();
+      renderMessages();
+    } else {
+      closeChatView();
+      switchDock('messages');
+    }
+  };
+
+  // 创建群聊
+  $('create-group-btn').onclick = () => {
+    $('group-msg').textContent = '';
+    $('group-name').value = '';
+    renderGroupPicker();
+    openModal('group-modal');
+    setTimeout(() => $('group-name').focus(), 50);
+  };
+  $('group-submit').onclick = () => {
+    const name = $('group-name').value.trim();
+    const members = [...document.querySelectorAll('#group-member-list input:checked')].map((i) => i.value);
+    if (!name) { $('group-msg').textContent = '请填写群名称'; return; }
+    if (!members.length) { $('group-msg').textContent = '请至少选择一位好友'; return; }
+    $('group-msg').textContent = '';
+    state.ws.send(JSON.stringify({ type: 'create-group', name, members }));
+  };
+
+  document.querySelectorAll('.modal-close').forEach((btn) => {
+    btn.onclick = () => closeModal(btn.dataset.close);
+  });
+  document.querySelectorAll('.modal-overlay').forEach((ov) => {
+    ov.onclick = (e) => { if (e.target === ov) ov.classList.add('hidden'); };
+  });
+  // ===== 已读/正在输入/群公告 功能 =====
+  
+  // 渲染正在输入状态
+  function renderTypingStatus() {
+    let el = document.getElementById('typing-status');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'typing-status';
+      el.style.cssText = 'color:#FF9800;font-size:12px;padding:4px 12px;display:none;';
+      const chatSub = document.getElementById('chat-sub');
+      if (chatSub && chatSub.parentNode) {
+        chatSub.parentNode.insertBefore(el, chatSub.nextSibling);
+      }
+    }
+    if (state.typingPeer && state.activeRoom.type === 'dm' && state.activeRoom.id === state.typingPeer) {
+      el.textContent = '对方正在输入...';
+      el.style.display = 'block';
+    } else {
+      el.style.display = 'none';
+    }
+  }
+
+  // 渲染群公告
+  function renderGroupAnnouncement() {
+    let el = document.getElementById('group-announcement');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'group-announcement';
+      el.style.cssText = 'background:#FFF3E0;color:#E65100;padding:8px 12px;font-size:13px;border-radius:4px;margin:4px 8px;display:none;cursor:pointer;';
+      const messages = document.getElementById('messages');
+      if (messages && messages.parentNode) {
+        messages.parentNode.insertBefore(el, messages);
+      }
+    }
+    if (state.activeRoom.type === 'group' && state.groupAnnouncements && state.groupAnnouncements[state.activeRoom.id]) {
+      const ann = state.groupAnnouncements[state.activeRoom.id];
+      el.textContent = '📢 群公告: ' + ann.text;
+      el.style.display = 'block';
+      el.onclick = () => alert('群公告\n\n' + ann.text);
+    } else {
+      el.style.display = 'none';
+    }
+  }
+
+  // 发送已读回执
+  function sendReadReceipt() {
+    if (state.activeRoom.type !== 'dm') return;
+    const msgs = currentMessages();
+    if (!msgs.length) return;
+    const lastMsg = msgs[msgs.length - 1];
+    if (lastMsg.from !== state.me.id && lastMsg.id !== state.lastSentReadId) {
+      state.lastSentReadId = lastMsg.id;
+      state.ws.send(JSON.stringify({ type: 'read', to: state.activeRoom.id, msgId: lastMsg.id }));
+    }
+  }
+
+  // 输入框 typing 状态
+  let typingTimer = null;
+  const msgInput = document.getElementById('msg-input');
+  if (msgInput) {
+    msgInput.addEventListener('input', () => {
+      if (state.activeRoom.type !== 'dm') return;
+      if (msgInput.value.trim()) {
+        if (!typingTimer) {
+          state.ws.send(JSON.stringify({ type: 'typing', to: state.activeRoom.id }));
+        }
+        clearTimeout(typingTimer);
+        typingTimer = setTimeout(() => { typingTimer = null; }, 2000);
+      }
+    });
+  }
+
+  // 切换房间时更新状态
+  const origRenderMessages = renderMessages;
+  renderMessages = function() {
+    origRenderMessages();
+    renderTypingStatus();
+    renderGroupAnnouncement();
+    sendReadReceipt();
+  };
+
+  // 群设置中添加发布公告按钮
+  function addGroupAnnouncementButton() {
+    const modal = document.getElementById('group-settings-modal');
+    if (!modal) return;
+    if (document.getElementById('btn-group-announcement')) return;
+    // 只对群主/管理员显示
+    const g = state.groups.get(state.activeRoom.id);
+    if (!g || (g.owner !== state.me.id && (!g.admins || !g.admins.includes(state.me.id)))) return;
+    const modalBox = modal.querySelector('.modal-box');
+    if (!modalBox) return;
+    const btn = document.createElement('button');
+    btn.id = 'btn-group-announcement';
+    btn.className = 'btn primary block';
+    btn.textContent = '发布群公告';
+    btn.style.marginTop = '8px';
+    btn.onclick = () => {
+      const text = prompt('请输入群公告内容:');
+      if (text && text.trim()) {
+        state.ws.send(JSON.stringify({ type: 'group_announcement', gid: state.activeRoom.id, text: text.trim() }));
+        toast('公告已发布');
+        closeModal('group-settings-modal');
+      }
+    };
+    // 插入到解散群聊按钮前面
+    const dissolveBtn = document.getElementById('gs-dissolve-btn');
+    if (dissolveBtn) {
+      modalBox.insertBefore(btn, dissolveBtn);
+    } else {
+      modalBox.appendChild(btn);
+    }
+  }
+
+  // 监听群设置打开
+  const observer = new MutationObserver(() => {
+    if (state.activeRoom.type === 'group') {
+      addGroupAnnouncementButton();
+    }
+  });
+  
+  // 群设置按钮点击时也尝试添加
+  const gsBtn = document.getElementById('group-settings-btn');
+  if (gsBtn) {
+    gsBtn.addEventListener('click', () => {
+      setTimeout(addGroupAnnouncementButton, 100);
+    });
+  }
+  observer.observe(document.body, { childList: true, subtree: true });
+}
+
+(async function init() {
+  applyTheme(localStorage.getItem('chat_theme') === 'light' ? 'light' : 'dark');
+  renderThemeMenuIcon();
+  applyFontSize(localStorage.getItem('chat_font') || 'md');
+  renderFullscreenIcon();
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  }
+  setupEvents();
+  const ok = await enterWithToken();
+  if (ok) enterChat();
+  else showAuth();
+})();
+
+
+// ========== 搜索群聊功能 ==========
+// 全局函数：打开搜索群弹窗
+function openSearchGroupModal() {
+  const modal = document.getElementById('search-group-modal');
+  const input = document.getElementById('search-group-input');
+  const results = document.getElementById('search-group-results');
+  if (modal) {
+    modal.classList.remove('hidden');
+    if (input) { input.value = ''; input.focus(); }
+    if (results) results.innerHTML = '';
+  }
+}
+
+// 全局函数：处理群申请按钮点击
+function applyGroup(btn) {
+  try {
+    console.log('[群申请] 按钮被点击');
+    const item = btn.closest('.search-result-item');
+    if (!item) { toast('错误：找不到搜索结果项'); return; }
+    const gid = item.dataset.gid;
+    const gname = item.dataset.gname;
+    console.log('[群申请] gid=', gid, 'gname=', gname);
+    if (!gid) { toast('错误：缺少群ID'); return; }
+    
+    const wsObj = (typeof ws !== 'undefined') ? ws : (state ? state.ws : null);
+    console.log('[群申请] wsObj=', wsObj, 'readyState=', wsObj ? wsObj.readyState : 'null');
+    
+    if (wsObj && wsObj.readyState === WebSocket.OPEN) {
+      btn.textContent = '申请中...';
+      btn.disabled = true;
+      wsObj.send(JSON.stringify({ type: 'group-apply', gid: gid }));
+      toast('已发送申请请求');
+      console.log('[群申请] 消息已发送');
+    } else {
+      toast('连接未就绪，请稍后重试');
+    }
+  } catch(e) {
+    console.error('[群申请] 错误:', e);
+    toast('出错了：' + e.message);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  const searchGroupBtn = document.getElementById('search-group-btn');
+  const searchGroupModal = document.getElementById('search-group-modal');
+  const searchGroupInput = document.getElementById('search-group-input');
+  const searchGroupSubmit = document.getElementById('search-group-submit');
+  const searchGroupResults = document.getElementById('search-group-results');
+
+  if (searchGroupBtn) {
+    searchGroupBtn.addEventListener('click', function() {
+      searchGroupModal.classList.remove('hidden');
+      searchGroupInput.value = '';
+      searchGroupResults.innerHTML = '';
+      searchGroupInput.focus();
+    });
+  }
+
+  if (searchGroupSubmit) {
+    searchGroupSubmit.addEventListener('click', doSearchGroup);
+    searchGroupInput.addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') doSearchGroup();
+    });
+  }
+
+  function doSearchGroup() {
+    const keyword = searchGroupInput.value.trim();
+    if (!keyword) {
+      searchGroupResults.innerHTML = '<div class="search-empty">请输入关键词</div>';
+      return;
+    }
+    searchGroupResults.innerHTML = '<div class="search-empty">搜索中...</div>';
+    fetch('/api/search-groups?keyword=' + encodeURIComponent(keyword))
+      .then(r => r.json())
+      .then(data => {
+        const groups = data.groups || [];
+        if (groups.length === 0) {
+          searchGroupResults.innerHTML = '<div class="search-empty">未找到相关群聊</div>';
+          return;
+        }
+        searchGroupResults.innerHTML = groups.map(g => {
+          const gname = escapeHtml(g.name || '');
+          const ownerName = escapeHtml(g.ownerName || '未知');
+          const avatarChar = escapeHtml((g.name || '?').charAt(0));
+          return `
+            <div class="search-result-item" data-gid="${escapeHtml(g.id)}" data-gname="${gname}">
+              <div class="search-result-avatar">${avatarChar}</div>
+              <div class="search-result-info">
+                <div class="search-result-name">${gname}</div>
+                <div class="search-result-sub">${escapeHtml(String(g.memberCount || 0))}人 · 群主: ${ownerName}</div>
+              </div>
+              <button class="search-apply-btn" onclick="applyGroup(this)">申请加入</button>
+            </div>
+          `;
+        }).join('');
+      })
+      .catch(err => {
+        searchGroupResults.innerHTML = '<div class="search-empty">搜索失败: ' + escapeHtml(err.message) + '</div>';
+      });
+  }
+});
+
+// 群申请相关消息处理（在原有消息处理中添加）
+const origOnMessage = ws ? ws.onmessage : null;
+// 注意：这里通过事件监听方式添加，不覆盖原有处理
+document.addEventListener('DOMContentLoaded', function() {
+  // 等待ws初始化后添加监听
+  const checkWs = setInterval(function() {
+    if (typeof ws !== 'undefined' && ws) {
+      ws.addEventListener('message', function(event) {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'group-apply-sent') {
+            // 申请发送成功
+            toast('申请已发送，请等待群主审批');
+            // 更新搜索结果中的按钮状态
+            const btns = document.querySelectorAll('.search-apply-btn');
+            btns.forEach(b => {
+              if (b.textContent === '申请中...') {
+                b.textContent = '已申请';
+                b.disabled = true;
+              }
+            });
+          } else if (data.type === 'group-apply-accepted') {
+            toast('你已成功加入群聊「' + (data.group ? data.group.name : '') + '」');
+            setTimeout(() => location.reload(), 1500);
+          } else if (data.type === 'group-apply-rejected') {
+            toast('你的入群申请被拒绝了');
+            // 重置按钮状态
+            const btns = document.querySelectorAll('.search-apply-btn');
+            btns.forEach(b => {
+              if (b.textContent === '申请中...' || b.textContent === '已申请') {
+                b.textContent = '申请加入';
+                b.disabled = false;
+              }
+            });
+          } else if (data.type === 'error' && data.error) {
+            console.log('[额外监听器] 收到error:', data.error);
+            // 错误通知
+            toast(data.error);
+            // 重置按钮状态
+            setTimeout(() => {
+              const btns = document.querySelectorAll('.search-apply-btn');
+              btns.forEach(b => {
+                if (b.textContent.includes('申请中') || b.disabled) {
+                  b.textContent = '申请加入';
+                  b.disabled = false;
+                }
+              });
+            }, 100);
+          } else if (data.type === 'group-apply-request') {
+            // 群主收到申请通知 - 已在主消息处理中处理
+          }
+        } catch(e) {}
+      });
+      clearInterval(checkWs);
+    }
+  }, 500);
+
+
+});
+
+
+// ===== 表情包功能 =====
+
+
+
+
+
+

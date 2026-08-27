@@ -69,6 +69,8 @@ public class CreateGroupActivity extends AppCompatActivity {
             User user = friends.get(position);
             holder.tvName.setText(user.username);
             holder.cbFriend.setChecked(selectedIds.contains(user.id));
+            holder.cbFriend.setClickable(false);
+            holder.cbFriend.setFocusable(false);
             holder.itemView.setOnClickListener(v -> {
                 if (selectedIds.contains(user.id)) {
                     selectedIds.remove(user.id);

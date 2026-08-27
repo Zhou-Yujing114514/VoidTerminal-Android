@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:background="@color/bg_dark"
+    android:padding="32dp">
+
+    <TextView
+        android:id="@+id/tv_lock_title"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="应用锁"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:textColor="@color/text_primary"
+        android:layout_marginBottom="16dp" />
+
+    <TextView
+        android:id="@+id/tv_lock_hint"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="请输入密码解锁"
+        android:textSize="14sp"
+        android:textColor="@color/text_secondary"
+        android:layout_marginBottom="24dp" />
+
+    <EditText
+        android:id="@+id/et_lock_password"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:inputType="numberPassword"
+        android:maxLength="6"
+        android:hint="请输入密码"
+        android:textSize="18sp"
+        android:textColor="@color/text_primary"
+        android:textColorHint="@color/text_secondary"
+        android:background="@drawable/bg_avatar"
+        android:paddingHorizontal="16dp"
+        android:gravity="center"
+        android:layout_marginBottom="24dp" />
+
+    <Button
+        android:id="@+id/btn_lock_confirm"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:text="确认"
+        android:textSize="16sp"
+        android:textColor="@color/white"
+        android:background="@color/accent" />
+
+</LinearLayout>

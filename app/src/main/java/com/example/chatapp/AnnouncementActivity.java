@@ -26,10 +26,25 @@ public class AnnouncementActivity extends AppCompatActivity {
         TextView tvEmpty = findViewById(R.id.tv_empty);
         try {
             List<Message> announcements = new ArrayList<>();
+            // 先从 latestAnnouncement 获取最新公告
+            String latest = WebSocketManager.getInstance().latestAnnouncement;
+            if (latest != null && !latest.isEmpty() && latest.startsWith("【站内公告】")) {
+                Message latestMsg = new Message();
+                latestMsg.from = "system";
+                latestMsg.content = latest;
+                latestMsg.time = System.currentTimeMillis();
+                announcements.add(latestMsg);
+            }
+            // 再从 globalRoom.messages 获取历史公告
             if (WebSocketManager.getInstance().globalRoom != null) {
                 for (Message msg : WebSocketManager.getInstance().globalRoom.messages) {
                     if (msg != null && msg.content != null && msg.content.startsWith("【站内公告】")) {
-                        announcements.add(0, msg);
+                        // 避免重复
+                        boolean exists = false;
+                        for (Message a : announcements) {
+                            if (a.content.equals(msg.content)) { exists = true; break; }
+                        }
+                        if (!exists) announcements.add(0, msg);
                     }
                 }
             }

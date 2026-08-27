@@ -1,4 +1,5 @@
 package com.example.chatapp;
+import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
 import android.view.ViewGroup;
@@ -9,13 +10,29 @@ import com.example.chatapp.fragment.ContactsFragment;
 import com.example.chatapp.fragment.MomentsFragment;
 import com.example.chatapp.fragment.ProfileFragment;
 import com.example.chatapp.websocket.WebSocketManager;
+import com.example.chatapp.util.ThemeHelper;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        WebSocketManager.getInstance().setContext(this);
+        // 应用锁检查
+        android.content.SharedPreferences lockPrefs = getSharedPreferences("app_lock", 0);
+        if (lockPrefs.getBoolean("enabled", false)) {
+            long lastUnlock = lockPrefs.getLong("last_unlock", 0);
+            // 超过5分钟需要重新解锁
+            if (System.currentTimeMillis() - lastUnlock > 5 * 60 * 1000) {
+                Intent intent = new Intent(this, AppLockActivity.class);
+                startActivity(intent);
+                finish();
+                return;
+            }
+        }
         setContentView(R.layout.activity_main);
-        applyTheme();
+        // 应用自定义主题
+        
+        // applyTheme(); // 已禁用，避免覆盖自定义主题
         WebSocketManager.setAppContext(this);
         BottomNavigationView bottomNav = findViewById(R.id.bottom_nav);
         bottomNav.setOnItemSelectedListener(item -> {
@@ -39,6 +56,10 @@ public class MainActivity extends AppCompatActivity {
                     .commit();
         }
     }
+    @Override
+    protected void onResume() {
+        super.onResume();
+    }
     private void applyTheme() {
         int bg = 0xFF1A1A2E;
         View root = findViewById(android.R.id.content);
@@ -50,4 +71,5 @@ public class MainActivity extends AppCompatActivity {
             }
         }
     }
+
 }
