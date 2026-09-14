@@ -10,8 +10,8 @@ android {
         applicationId "com.example.chatapp"
         minSdk 24
         targetSdk 34
-        versionCode 1027
-        versionName "10.27"
+        versionCode 1028
+        versionName "2.1.0"
     }
 
     buildTypes {
@@ -36,4 +36,5 @@ dependencies {
     implementation 'com.github.bumptech.glide:glide:4.16.0'
     annotationProcessor 'com.github.bumptech.glide:compiler:4.16.0'
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    implementation 'androidx.security:security-crypto:1.1.0-alpha06'
 }

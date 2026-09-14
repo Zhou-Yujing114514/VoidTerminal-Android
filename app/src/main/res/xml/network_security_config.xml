@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  网络安全配置（v2.1.0）：
+  - 默认禁止所有明文 HTTP / WS 流量（cleartextTrafficPermitted=false）。
+  - 服务器 buer.kdns.fr、morax.kdns.fr 均走 HTTPS / WSS。
+  如未来确需调试自签名证书，应在此处显式声明 domain，而非全局放开明文。
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

@@ -467,10 +467,9 @@ public class WebSocketManager {
             JSONObject selfObj = msg.optJSONObject("self");
             if (selfObj != null) {
                 currentUser = User.fromJson(selfObj);
-                // 保存头像到 SharedPreferences
+                // 保存头像到加密 SharedPreferences
                 if (context != null && currentUser.avatar != null) {
-                    context.getSharedPreferences("chatapp_prefs", 0).edit()
-                        .putString("avatar", currentUser.avatar).apply();
+                    com.example.chatapp.util.SharedPrefs.setAvatar(context, currentUser.avatar);
                 }
             }
             isAdmin = msg.optBoolean("isAdmin", false);
