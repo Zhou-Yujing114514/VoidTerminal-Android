@@ -39,13 +39,40 @@ public class SharedPrefs {
                                 EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
                         );
                     } catch (Exception e) {
-                        // 加密失败（极少数 Keystore 异常）时回退到普通 SP，避免应用崩溃。
-                        instance = ctx.getApplicationContext().getSharedPreferences(PREFS, 0);
+                        // M10: 不再静默回退到明文 SharedPreferences（会把 token/PIN 明文落盘）。
+                        // Keystore 异常通常意味着加密 prefs 文件损坏，删除损坏文件并重置单例，
+                        // 由调用方/用户重新登录；绝不在降级路径创建明文 SP。
+                        try {
+                            ctx.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                                    .edit().clear().apply();
+                        } catch (Exception ignored) {}
+                        instance = null;
+                        throw new RuntimeException("安全存储初始化失败，请重新登录: " + e.getMessage(), e);
                     }
                 }
             }
         }
         return instance;
+    }
+
+    // ===== M9: 应用锁 PIN 存入加密 SharedPreferences（不再用普通 "app_lock" SP 明文）=====
+    public static String getAppLockPin(Context ctx) {
+        return prefs(ctx).getString("app_lock_pin", "");
+    }
+    public static void setAppLockPin(Context ctx, String pin) {
+        prefs(ctx).edit().putString("app_lock_pin", pin).apply();
+    }
+    public static boolean isAppLockEnabled(Context ctx) {
+        return prefs(ctx).getBoolean("app_lock_enabled", false);
+    }
+    public static void setAppLockEnabled(Context ctx, boolean enabled) {
+        prefs(ctx).edit().putBoolean("app_lock_enabled", enabled).apply();
+    }
+    public static long getLastUnlock(Context ctx) {
+        return prefs(ctx).getLong("app_lock_last_unlock", 0);
+    }
+    public static void setLastUnlock(Context ctx, long time) {
+        prefs(ctx).edit().putLong("app_lock_last_unlock", time).apply();
     }
 
     public static String getToken(Context ctx) {

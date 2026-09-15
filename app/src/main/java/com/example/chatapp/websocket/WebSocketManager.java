@@ -7,6 +7,7 @@ import android.content.Intent;
 import android.os.Build;
 import android.util.Log;
 import androidx.core.app.NotificationCompat;
+import com.example.chatapp.BuildConfig;
 import com.example.chatapp.MainActivity;
 import com.example.chatapp.R;
 import com.example.chatapp.model.ChatRoom;
@@ -168,6 +169,11 @@ public class WebSocketManager {
         return instance;
     }
     public void setServer(String server) {
+        // L15: 仅允许 https 服务器，拒绝明文 http://（否则 WebSocket 会降级为明文 ws://，
+        // 聊天内容/token 可被中间人窃取）。
+        if (server == null || !server.startsWith("https://")) {
+            throw new IllegalArgumentException("服务器地址必须使用 https:// 以保证加密连接");
+        }
         this.serverBase = server;
     }
     public void notifyAvatarUpdate(String userId, String avatar) {
@@ -179,7 +185,8 @@ public class WebSocketManager {
         if (isConnecting) return;
         isConnecting = true;
         if (webSocket != null) webSocket.close(1000, "reconnect");
-        String wsUrl = serverBase.replace("https://", "wss://").replace("http://", "ws://") + "/ws";
+        // L15: 仅从 https 升级为加密 wss://，不再支持明文 ws://
+        String wsUrl = serverBase.replace("https://", "wss://") + "/ws";
         OkHttpClient client = new OkHttpClient.Builder()
                 .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
                 .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
@@ -334,7 +341,10 @@ public class WebSocketManager {
         for (WSListener l : listeners) l.onFriendRequestResult(ok, error);
     }
     private void handleRequestRespond(JSONObject msg) {
-        Log.d(TAG, "Request respond: " + msg.toString());
+        // L11: 整包服务器消息可能含敏感字段，仅 Debug 版输出 logcat
+        if (BuildConfig.DEBUG) {
+            Log.d(TAG, "Request respond: " + msg.toString());
+        }
     }
     private void handleFriendRemoved(JSONObject msg) {
         try {

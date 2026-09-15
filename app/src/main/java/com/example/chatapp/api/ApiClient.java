@@ -85,7 +85,14 @@ public class ApiClient {
         }
     }
     public static void getAdminUsers(String token, Callback cb) {
-        get("/api/admin/users?token=" + token, cb);
+        // M8: token 不再放在 URL query（会被日志/历史/代理记录），改为 POST body 携带
+        try {
+            JSONObject body = new JSONObject();
+            body.put("token", token);
+            post("/api/admin/users", body.toString(), cb);
+        } catch (Exception e) {
+            cb.onError(e.getMessage());
+        }
     }
     public static void banUser(String token, String userId, boolean banned, Callback cb) {
         try {

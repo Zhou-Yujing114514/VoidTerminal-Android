@@ -17,10 +17,9 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         WebSocketManager.getInstance().setContext(this);
-        // 应用锁检查
-        android.content.SharedPreferences lockPrefs = getSharedPreferences("app_lock", 0);
-        if (lockPrefs.getBoolean("enabled", false)) {
-            long lastUnlock = lockPrefs.getLong("last_unlock", 0);
+        // 应用锁检查（M9: 读取 EncryptedSharedPreferences）
+        if (com.example.chatapp.util.SharedPrefs.isAppLockEnabled(this)) {
+            long lastUnlock = com.example.chatapp.util.SharedPrefs.getLastUnlock(this);
             // 超过5分钟需要重新解锁
             if (System.currentTimeMillis() - lastUnlock > 5 * 60 * 1000) {
                 Intent intent = new Intent(this, AppLockActivity.class);

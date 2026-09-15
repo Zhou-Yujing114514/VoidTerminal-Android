@@ -1,14 +1,13 @@
 package com.example.chatapp;
 
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.os.Bundle;
-import android.text.TextUtils;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
+import com.example.chatapp.util.SharedPrefs;
 
 public class AppLockActivity extends AppCompatActivity {
     private EditText etPassword;
@@ -48,10 +47,9 @@ public class AppLockActivity extends AppCompatActivity {
                     tvHint.setText("请再次输入密码确认");
                 } else {
                     if (firstPassword.equals(pwd)) {
-                        getSharedPreferences("app_lock", 0).edit()
-                                .putString("password", pwd)
-                                .putBoolean("enabled", true)
-                                .apply();
+                        // M9: PIN 写入 EncryptedSharedPreferences，不再用普通 SP 明文
+                        SharedPrefs.setAppLockPin(this, pwd);
+                        SharedPrefs.setAppLockEnabled(this, true);
                         Toast.makeText(this, "应用锁已开启", Toast.LENGTH_SHORT).show();
                         finish();
                     } else {
@@ -62,12 +60,10 @@ public class AppLockActivity extends AppCompatActivity {
                     }
                 }
             } else {
-                SharedPreferences prefs = getSharedPreferences("app_lock", 0);
-                String savedPwd = prefs.getString("password", "");
+                // M9: 从加密 SP 读取 PIN
+                String savedPwd = SharedPrefs.getAppLockPin(this);
                 if (pwd.equals(savedPwd)) {
-                    getSharedPreferences("app_lock", 0).edit()
-                            .putLong("last_unlock", System.currentTimeMillis())
-                            .apply();
+                    SharedPrefs.setLastUnlock(this, System.currentTimeMillis());
                     Intent intent = new Intent(this, MainActivity.class);
                     intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
                     startActivity(intent);

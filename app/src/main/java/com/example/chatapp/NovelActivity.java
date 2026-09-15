@@ -1,4 +1,6 @@
 package com.example.chatapp;
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.view.View;
 import android.webkit.WebChromeClient;
@@ -11,10 +13,24 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
+import java.util.HashSet;
+import java.util.Set;
 public class NovelActivity extends AppCompatActivity {
     private WebView webView;
     private ProgressBar progressBar;
     private TextView errorText;
+    // M7: WebView 允许加载的域名白名单
+    private static final Set<String> ALLOWED_HOSTS = new HashSet<>();
+    static {
+        ALLOWED_HOSTS.add("morax.kdns.fr");
+    }
+    private boolean isAllowedHost(String host) {
+        if (host == null) return false;
+        for (String allowed : ALLOWED_HOSTS) {
+            if (host.equalsIgnoreCase(allowed) || host.endsWith("." + allowed)) return true;
+        }
+        return false;
+    }
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -33,16 +49,29 @@ public class NovelActivity extends AppCompatActivity {
         settings.setBuiltInZoomControls(true);
         settings.setDisplayZoomControls(false);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
-        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+        // M6: 禁止混合内容，强制 HTTPS
+        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         settings.setUserAgentString("Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36");
-        settings.setAllowFileAccess(true);
-        settings.setAllowContentAccess(true);
+        // M7: 关闭 file/content 访问
+        settings.setAllowFileAccess(false);
+        settings.setAllowContentAccess(false);
         settings.setDatabaseEnabled(true);
         settings.setGeolocationEnabled(false);
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                view.loadUrl(request.getUrl().toString());
+                // M7: 仅白名单域名在 WebView 内加载，其余用外部浏览器打开
+                Uri url = request.getUrl();
+                if (isAllowedHost(url.getHost())) {
+                    view.loadUrl(url.toString());
+                    return true;
+                }
+                try {
+                    Intent ext = new Intent(Intent.ACTION_VIEW, url);
+                    startActivity(ext);
+                } catch (Exception e) {
+                    Toast.makeText(NovelActivity.this, "无法打开链接", Toast.LENGTH_SHORT).show();
+                }
                 return true;
             }
             @Override
