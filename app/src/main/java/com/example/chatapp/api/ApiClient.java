@@ -8,6 +8,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -306,7 +307,20 @@ public class ApiClient {
         }
     }
     public static void searchGroups(String keyword, Callback cb) {
-        get("/api/search-groups?keyword=" + escape(keyword), cb);
+        try {
+            get("/api/search-groups?keyword=" + URLEncoder.encode(keyword, "UTF-8"), cb);
+        } catch (Exception e) {
+            cb.onError("编码错误: " + e.getMessage());
+        }
+    }
+    public static void logout(String token, Callback cb) {
+        try {
+            JSONObject body = new JSONObject();
+            body.put("token", token);
+            post("/api/logout", body.toString(), cb);
+        } catch (Exception e) {
+            cb.onError(e.getMessage());
+        }
     }
     public static void changePassword(String token, String oldPassword, String newPassword, Callback cb) {
         try {

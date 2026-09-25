@@ -141,6 +141,13 @@ public class ProfileFragment extends Fragment {
         });
         ivAvatar.setOnClickListener(v -> pickImage());
         btnLogout.setOnClickListener(v -> {
+            String token = SharedPrefs.getToken(getContext());
+            if (token != null && !token.isEmpty()) {
+                ApiClient.logout(token, new ApiClient.Callback() {
+                    @Override public void onSuccess(JSONObject result) {}
+                    @Override public void onError(String error) {}
+                });
+            }
             WebSocketManager.getInstance().disconnect();
             SharedPrefs.clear(getContext());
             Intent intent = new Intent(getContext(), LoginActivity.class);
