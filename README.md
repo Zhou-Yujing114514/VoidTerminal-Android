@@ -25,5 +25,5 @@
 
 ## 服务器
 
-- 服务器地址：https://buer.kdns.fr
-- 网页端：https://buer.kdns.fr/
+- 服务器地址：https://buer.sswwgzs.cn
+- 网页端：https://buer.sswwgzs.cn/

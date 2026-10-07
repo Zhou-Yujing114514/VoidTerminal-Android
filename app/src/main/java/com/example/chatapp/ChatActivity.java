@@ -1148,7 +1148,7 @@ public class ChatActivity extends AppCompatActivity implements WebSocketManager.
         final String fileId = java.util.UUID.randomUUID().toString();
         final int chunkSize = 1024 * 1024; // 1MB一块
         final int totalChunks = (int) Math.ceil((double) fileBytes.length / chunkSize);
-        final String serverBase = "https://buer.kdns.fr";
+        final String serverBase = "https://buer.sswwgzs.cn";
         new Thread(() -> {
             try {
                 for (int i = 0; i < totalChunks; i++) {

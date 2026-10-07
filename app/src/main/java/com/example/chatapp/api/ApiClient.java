@@ -24,7 +24,7 @@ public class ApiClient {
         void onSuccess(JSONObject result);
         void onError(String error);
     }
-    private static String baseUrl = "https://buer.kdns.fr";
+    private static String baseUrl = "https://buer.sswwgzs.cn";
     public static void setBaseUrl(String url) {
         baseUrl = url;
     }

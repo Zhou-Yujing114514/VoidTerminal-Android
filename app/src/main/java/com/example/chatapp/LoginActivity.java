@@ -15,7 +15,7 @@ import com.example.chatapp.util.SharedPrefs;
 import com.example.chatapp.websocket.WebSocketManager;
 import org.json.JSONObject;
 public class LoginActivity extends AppCompatActivity {
-    private static final String SERVER_URL = "https://buer.kdns.fr";
+    private static final String SERVER_URL = "https://buer.sswwgzs.cn";
     private LinearLayout loginForm;
     private LinearLayout loadingView;
     private TextView loadingText;

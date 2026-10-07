@@ -24,7 +24,7 @@ public class FilePreviewActivity extends AppCompatActivity {
     // M7/L14: 允许加载/打开的文件下载域名白名单
     private static final Set<String> TRUSTED_HOSTS = new HashSet<>();
     static {
-        TRUSTED_HOSTS.add("buer.kdns.fr");
+        TRUSTED_HOSTS.add("buer.sswwgzs.cn");
         TRUSTED_HOSTS.add("view.officeapps.live.com");
     }
     private String fileUrl;

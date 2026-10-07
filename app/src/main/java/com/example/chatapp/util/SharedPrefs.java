@@ -18,7 +18,7 @@ import androidx.security.crypto.MasterKey;
  */
 public class SharedPrefs {
     private static final String PREFS = "chatapp_secure_prefs";
-    private static final String DEFAULT_SERVER = "https://buer.kdns.fr";
+    private static final String DEFAULT_SERVER = "https://buer.sswwgzs.cn";
 
     private static volatile SharedPreferences instance;
 

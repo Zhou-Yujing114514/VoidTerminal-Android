@@ -40,7 +40,7 @@ public class WebSocketManager {
     private boolean isConnecting = false;
     private int reconnectAttempts = 0;
     private android.os.Handler reconnectHandler = new android.os.Handler();
-    private String serverBase = "https://buer.kdns.fr";
+    private String serverBase = "https://buer.sswwgzs.cn";
     private String token;
     public User currentUser;
     public List<User> friends = new ArrayList<>();

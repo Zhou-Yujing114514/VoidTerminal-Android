@@ -32,7 +32,7 @@ import org.json.JSONObject;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 public class ProfileFragment extends Fragment {
-    private static final String SERVER_URL = "https://buer.kdns.fr";
+    private static final String SERVER_URL = "https://buer.sswwgzs.cn";
     private ImageView ivAvatar;
     private TextView tvUsername, tvUserId, tvServer;
     private View btnCustomBg;
@@ -89,7 +89,7 @@ public class ProfileFragment extends Fragment {
         btnFloatingBall.setOnClickListener(v -> toggleFloatingBall());
         updateFloatingStatus();
         btnCustomBg.setOnClickListener(v -> showBgMenu());
-        btnNovel.setOnClickListener(v -> startActivity(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://morax.kdns.fr/"))));
+        btnNovel.setOnClickListener(v -> startActivity(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://sswwgzs.cn/"))));
         btnCheckUpdate.setOnClickListener(v -> {
             String currentVersion = "v8.2";
             new AlertDialog.Builder(getContext())

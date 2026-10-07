@@ -22,7 +22,7 @@ public class NovelActivity extends AppCompatActivity {
     // M7: WebView 允许加载的域名白名单
     private static final Set<String> ALLOWED_HOSTS = new HashSet<>();
     static {
-        ALLOWED_HOSTS.add("morax.kdns.fr");
+        ALLOWED_HOSTS.add("sswwgzs.cn");
     }
     private boolean isAllowedHost(String host) {
         if (host == null) return false;
@@ -106,7 +106,7 @@ public class NovelActivity extends AppCompatActivity {
             }
         });
         try {
-            webView.loadUrl("https://morax.kdns.fr/");
+            webView.loadUrl("https://sswwgzs.cn/");
         } catch (Exception e) {
             Toast.makeText(this, "加载失败: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
