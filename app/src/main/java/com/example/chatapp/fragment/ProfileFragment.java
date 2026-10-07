@@ -89,7 +89,7 @@ public class ProfileFragment extends Fragment {
         btnFloatingBall.setOnClickListener(v -> toggleFloatingBall());
         updateFloatingStatus();
         btnCustomBg.setOnClickListener(v -> showBgMenu());
-        btnNovel.setOnClickListener(v -> startActivity(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://sswwgzs.cn/"))));
+        btnNovel.setOnClickListener(v -> startActivity(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://morax.sswwgzs.cn/"))));
         btnCheckUpdate.setOnClickListener(v -> {
             String currentVersion = "v8.2";
             new AlertDialog.Builder(getContext())
